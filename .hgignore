@@ -1,0 +1,21 @@
+# use glob syntax.
+syntax: glob
+
+# Ignore all files of these types:
+*~
+*.o
+*.a
+
+# switch to regexp syntax.
+syntax: regexp
+# example from mercurial manual   ^\.pc/
+# Ignore these files:
+^extlibs/metis-4.0.tgz$
+^extlibs/taucs-2.2.tgz$
+^gmrflib/RCSId\.all$
+^gmrflib/hgstamp$
+^gmrflib/examples/Makefile\.in$
+^gmrflib/tutorial/Makefile\.in$
+^gmrflib/doc/
+^inlaprog/inla$
+^rinla/man/control\..*$
