@@ -12374,14 +12374,27 @@ int inla_MCMC(inla_tp * mb_old, inla_tp * mb_new)
 		}
 	}
 
+
+
 	x_old = Calloc(N, double);
 	x_new = Calloc(N, double);
+
+	if (mb_old->reuse_mode && mb_old->x_file) {
+		if (N != mb_old->nx_file) {
+			char *msg;
+			GMRFLib_sprintf(&msg, "N = %1d but nx_file = %1d. Stop.", N, mb_old->nx_file);
+			inla_error_general(msg);
+		}
+		memcpy(x_old, mb_old->x_file, N * sizeof(double));
+		memcpy(x_new, mb_old->x_file, N * sizeof(double));
+	} else {
 #pragma omp parallel for private(i)
-	for (i = 0; i < mb_old->predictor_n; i++) {
-		if (mb_old->d[i]) {
-			x_old[i] = x_new[i] = inla_compute_initial_value(i, mb_old->loglikelihood[i], x_new, (void *) mb_old->loglikelihood_arg[i]);
-		} else {
-			x_old[i] = x_new[i] = 0.0;
+		for (i = 0; i < mb_old->predictor_n; i++) {
+			if (mb_old->d[i]) {
+				x_old[i] = x_new[i] = inla_compute_initial_value(i, mb_old->loglikelihood[i], NULL, (void *) mb_old->loglikelihood_arg[i]);
+			} else {
+				x_old[i] = x_new[i] = 0.0;
+			}
 		}
 	}
 
@@ -12407,7 +12420,7 @@ int inla_MCMC(inla_tp * mb_old, inla_tp * mb_new)
 	if (mb_old->ntheta) {
 		printf("\n\tInitial values for the hyperparameters: \n");
 		for (i = 0; i < mb_old->ntheta; i++) {
-			printf("\t\ttheta[%1d] = %s = %.10g = %.10g in user-scale\n", i, mb_old->theta_tag[i], mb_old->theta[i][0][0],
+			printf("\t\ttheta[%1d] = %s = %.10g (= %.10g in user-scale)\n", i, mb_old->theta_tag[i], mb_old->theta[i][0][0],
 			       mb_old->theta_map[i] (mb_old->theta[i][0][0], MAP_FORWARD, mb_old->theta_map_arg[i]));
 		}
 		printf("\n");
@@ -12656,6 +12669,49 @@ int inla_MCMC(inla_tp * mb_old, inla_tp * mb_new)
 		}
 	}
 
+	/* 
+	   write to file, the last configuration additional to the index-table, describing what is what.
+	 */
+	FILE *fp_last_x = NULL;
+	FILE *fp_last_theta = NULL;
+	FILE *fp_idx_table = NULL;
+	char *last_dir = NULL;
+	char *last_theta = NULL;
+	char *last_x = NULL;
+	char *idx_table = NULL;
+	
+	GMRFLib_sprintf(&last_dir, "%s/%s", mb_old->dir, "last-mcmc-configuration");
+	inla_fnmfix(last_dir);
+	inla_mkdir(last_dir);
+
+	GMRFLib_sprintf(&last_theta, "%s/theta.dat", last_dir);
+	inla_fnmfix(last_theta);
+	fp_last_theta = fopen(last_theta, "w");
+	for(i=0; i<mb_old->ntheta; i++){
+		fprintf(fp_last_theta, "%.12g\n", mb_old->theta[i][0][0]);
+	}
+	fclose(fp_last_theta);
+
+	GMRFLib_sprintf(&last_x, "%s/x.dat", last_dir);
+	inla_fnmfix(last_x);
+	fp_last_x = fopen(last_x, "w");
+	for(i=0; i<N; i++){
+		fprintf(fp_last_x, "%.12g\n", x_old[i]);
+	}
+	fclose(fp_last_x);
+	
+	GMRFLib_sprintf(&idx_table, "%s/idx-table.dat", last_dir);
+	inla_fnmfix(idx_table);
+	fp_idx_table = fopen(idx_table, "w");
+
+	for (i = 0; i < mb_old->idx_tot; i++) {
+		fprintf(fp_idx_table, "%1d %1d %s\n",  mb_old->idx_start[i], mb_old->idx_n[i],  mb_old->idx_tag[i]);
+	}
+	fclose(fp_idx_table);
+
+	/* 
+	   cleanup
+	 */
 	GMRFLib_free_store(store);
 	Free(b);
 	Free(c);
@@ -12663,6 +12719,10 @@ int inla_MCMC(inla_tp * mb_old, inla_tp * mb_new)
 	Free(x_new);
 	Free(theta_old);
 	Free(theta_new);
+	Free(last_dir);
+	Free(last_theta);
+	Free(last_x);
+	Free(idx_table);
 
 	return INLA_OK;
 }
@@ -12686,7 +12746,7 @@ int inla_parse_output(inla_tp * mb, dictionary * ini, int sec, Output_tp ** out)
 		(*out)->cpo = 0;
 		(*out)->dic = 0;
 		(*out)->summary = 1;
-		(*out)->density = 1;
+		(*out)->return_marginals = 1;
 		(*out)->kld = 1;
 		(*out)->mlik = 0;
 		(*out)->q = 0;
@@ -12704,7 +12764,7 @@ int inla_parse_output(inla_tp * mb, dictionary * ini, int sec, Output_tp ** out)
 		(*out)->mlik = mb->output->mlik;
 		(*out)->q = mb->output->q;
 		(*out)->hyperparameters = mb->output->hyperparameters;
-		(*out)->density = mb->output->density;
+		(*out)->return_marginals = mb->output->return_marginals;
 		(*out)->nquantiles = mb->output->nquantiles;
 		if (mb->output->nquantiles) {
 			(*out)->quantiles = Calloc(mb->output->nquantiles, double);
@@ -12719,7 +12779,7 @@ int inla_parse_output(inla_tp * mb, dictionary * ini, int sec, Output_tp ** out)
 	(*out)->cpo = iniparser_getboolean(ini, inla_string_join(secname, "CPO"), (*out)->cpo);
 	(*out)->dic = iniparser_getboolean(ini, inla_string_join(secname, "DIC"), (*out)->dic);
 	(*out)->summary = iniparser_getboolean(ini, inla_string_join(secname, "SUMMARY"), (*out)->summary);
-	(*out)->density = iniparser_getboolean(ini, inla_string_join(secname, "DENSITY"), (*out)->density);
+	(*out)->return_marginals = iniparser_getboolean(ini, inla_string_join(secname, "RETURN.MARGINALS"), (*out)->return_marginals);
 	(*out)->hyperparameters = iniparser_getboolean(ini, inla_string_join(secname, "HYPERPARAMETERS"), (*out)->hyperparameters);
 	(*out)->kld = iniparser_getboolean(ini, inla_string_join(secname, "KLD"), (*out)->kld);
 	(*out)->mlik = iniparser_getboolean(ini, inla_string_join(secname, "MLIK"), (*out)->mlik);
@@ -12771,7 +12831,7 @@ int inla_parse_output(inla_tp * mb, dictionary * ini, int sec, Output_tp ** out)
 			printf("\t\t\thyperparameters=[%1d]\n", (*out)->hyperparameters);
 		}
 		printf("\t\t\tsummary=[%1d]\n", (*out)->summary);
-		printf("\t\t\tdensity=[%1d]\n", (*out)->density);
+		printf("\t\t\treturn.marginals=[%1d]\n", (*out)->return_marginals);
 		printf("\t\t\tnquantiles=[%1d]  [", (*out)->nquantiles);
 		for (i = 0; i < (*out)->nquantiles; i++) {
 			printf(" %g", (*out)->quantiles[i]);
@@ -13039,6 +13099,7 @@ int inla_output(inla_tp * mb)
 			}
 
 			if (mb->density_hyper) {
+
 				for (ii = 0; ii < mb->ntheta; ii++) {
 					char *sdir, *newtag;
 
@@ -13908,7 +13969,7 @@ int inla_output_detail(const char *dir, GMRFLib_density_tp ** density, GMRFLib_d
 			Free(nndir);
 		}
 	}
-	if (output->density) {
+	if (output->return_marginals || strncmp("hyperparameter", sdir, 13) == 0) {
 		if (inla_computed(density, n)) {
 			GMRFLib_sprintf(&nndir, "%s/%s", ndir, "marginal-densities.dat");
 			inla_fnmfix(nndir);
@@ -14594,6 +14655,8 @@ int main(int argc, char **argv)
 	double time_used[3];
 	inla_tp *mb = NULL;
 
+	omp_set_nested(1);				       /* want this feature */
+	
 	ncpu = inla_ncpu();
 	if (ncpu > 0) {
 		omp_set_num_threads(ncpu);

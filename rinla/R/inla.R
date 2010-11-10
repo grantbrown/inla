@@ -155,9 +155,10 @@
                 inla.ifelse(!is.null(baseline.hazard.values),
                             inla.paste(c(", values = ", inla.2list(baseline.hazard.values))), ""),
                 ", fixed = ", cont.hazard$fixed,
-                inla.ifelse(is.null(cont.hazard$initial), ", initial = NULL", paste(", prior = ", cont.hazard$initial, "", sep="")),
+                inla.ifelse(is.null(cont.hazard$initial), ", initial = NULL", paste(", initial = ", cont.hazard$initial, "", sep="")),
                 ", constr = ", cont.hazard$constr,
                 inla.ifelse(is.null(cont.hazard$prior), ", prior = NULL", paste(", prior = \"", cont.hazard$prior, "\"", sep="")),
+                inla.ifelse(is.null(cont.hazard$param), ", param = NULL", paste(", param = ", inla.2list(cont.hazard$param), sep="")),
                 ", si = ", inla.ifelse(cont.hazard$si, "TRUE", "FALSE"),
                 inla.ifelse(is.null(strata.var), "", paste(", replicate=", strata.var)),
                 ")", sep="")
@@ -404,7 +405,7 @@
     if (debug) 
         print("prepare problem section")
     inla.problem.section(file = file.ini, data.dir = data.dir, result.dir = results.dir,
-                         hyperpar = cont.compute$hyperpar,
+                         hyperpar = cont.compute$hyperpar, return.marginals = cont.compute$return.marginals,
                          dic = cont.compute$dic, mlik = cont.compute$mlik, cpo = cont.compute$cpo,
                          quantiles = quantiles, smtp = cont.compute$smtp, q = cont.compute$q)
     

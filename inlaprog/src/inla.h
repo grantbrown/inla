@@ -308,7 +308,7 @@ typedef struct {
 	int cpo;					       /* output CPO */
 	int dic;					       /* output DIC */
 	int summary;					       /* output marginal summaries (mean, stdev, etc) */
-	int density;					       /* output detailed marginal density */
+	int return_marginals;				       /* output detailed marginal density (even though they are computed) */
 	int hyperparameters;				       /* compute also the marginal for the hyperparameters */
 	int kld;					       /* output the (symmetric) kld between marginals */
 	int mlik;					       /* compute the marginal likelihood? */
@@ -868,6 +868,7 @@ int loglikelihood_stochvol_t(double *logll, double *x, int m, int idx, double *x
 int loglikelihood_t(double *logll, double *x, int m, int idx, double *x_vec, void *arg);
 int loglikelihood_weibull(double *logll, double *x, int m, int idx, double *x_vec, void *arg);
 int loglikelihood_weibull_cure(double *logll, double *x, int m, int idx, double *x_vec, void *arg);
+int loglikelihood_zeroinflated_betabinomial2(double *logll, double *x, int m, int idx, double *x_vec, void *arg);
 int loglikelihood_zeroinflated_binomial0(double *logll, double *x, int m, int idx, double *x_vec, void *arg);
 int loglikelihood_zeroinflated_binomial1(double *logll, double *x, int m, int idx, double *x_vec, void *arg);
 int loglikelihood_zeroinflated_binomial2(double *logll, double *x, int m, int idx, double *x_vec, void *arg);
