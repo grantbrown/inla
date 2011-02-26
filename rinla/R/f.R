@@ -55,7 +55,14 @@ function(
          ##!\item{control.group}{}
          control.group = inla.set.control.group.default(),
 
-         ##!\item{initial}{ Vector indicating the starting values for
+         ##!\item{hyper}{Spesification of the hyperparameter, fixed or
+         ##!random, initial values, priors and its parameters. See
+         ##!\code{?inla.models} for the list of hyparameters for each
+         ##!model and its default options.}
+         hyper = NULL,
+         
+         ##!\item{initial}{THIS OPTION IS OBSOLETE; use
+         ##!\code{hyper}!!! Vector indicating the starting values for
          ##!the optimization algorithm. The length of the vector
          ##!depends on the number of hyperparamters in the choosen
          ##!\code{model}. If \code{fixed=T} the value at which the
@@ -64,32 +71,34 @@ function(
          ##!about the choosen model.}
          initial=NULL,
 
-         ##!\item{season.length}{Lenght of the seasonal compoment
-         ##!(ONLY if \code{model="seasonal"}) }
-         season.length=NULL,
-
-         ##!\item{prior}{ Prior distribution(s) for the
-         ##!hyperparameters of the !random model. The default value
-         ##!depends on the type of model, see !\url{www.r-inla.org}
-         ##!for a detailed description of the models. See
+         ##!\item{prior}{THIS OPTION IS OBSOLETE; use \code{hyper}!!!
+         ##!Prior distribution(s) for the hyperparameters of the
+         ##!!random model. The default value depends on the type of
+         ##!model, see !\url{www.r-inla.org} for a detailed
+         ##!description of the models. See
          ##!\code{names(inla.models()$priors)} for possible prior
          ##!choices}
          prior=NULL,
 
-         ##!\item{param}{Vector indicating the parameters \eqn{a}{a}
-         ##!and \eqn{b}{b} of the prior distribution for the
-         ##!hyperparameters. The length of the vector depends on the
-         ##!choosen \code{model}.  See
-         ##!\code{inla.models()$models$'model name'} to have info
+         ##!\item{param}{THIS OPTION IS OBSOLETE; use \code{hyper}!!!
+         ##!Vector indicating the parameters \eqn{a}{a} and \eqn{b}{b}
+         ##!of the prior distribution for the hyperparameters. The
+         ##!length of the vector depends on the choosen \code{model}.
+         ##!See \code{inla.models()$models$'model name'} to have info
          ##!about the choosen model.}
          param = NULL,
 
-         ##!\item{fixed}{Vector of boolean variables indicating
-         ##!wheater the hyperparameters of the model are fixed or
-         ##!random. The length of the vector depends on the choosen
-         ##!\code{model} See \code{inla.models()$models$'model name'}
-         ##!to have info about the choosen model.}
+         ##!\item{fixed}{THIS OPTION IS OBSOLETE; use \code{hyper}!!!
+         ##!Vector of boolean variables indicating wheater the
+         ##!hyperparameters of the model are fixed or random. The
+         ##!length of the vector depends on the choosen \code{model}
+         ##!See \code{inla.models()$models$'model name'} to have info
+         ##!about the choosen model.}
          fixed = NULL,
+
+         ##!\item{season.length}{Lenght of the seasonal compoment
+         ##!(ONLY if \code{model="seasonal"}) }
+         season.length=NULL,
 
          ##!\item{constr}{A boolean variable indicating whater to set
          ##!a sum to 0 constraint on the term. By default the sum to 0
@@ -213,40 +222,17 @@ function(
          debug = FALSE)
 {
     ##!}
-    ##!\value{
-    ##!The function return a list of objects.
-    
-    ##!(NOTE: the description of the output is not accurate since it is used
-    ##!only for internal computations.)
-    ##!}
+    ##!\value{} 
 
-    ##!\details{
-    ##!There is no default value for \code{rankdef}, if it is not defined by
-    ##!the user  then it is computed by the
-    ##!rank deficiency of the prior model (for the generic model, the
+    ##!\details{There is no default value for \code{rankdef}, if it
+    ##!is not defined by the user then it is computed by the rank
+    ##!deficiency of the prior model (for the generic model, the
     ##!default is zero), plus 1 for the sum-to-zero constraint if the
     ##!prior model is proper, plus the number of extra
     ##!constraints. \bold{Oops:} This can be wrong, and then the user
-    ##!must define the \code{rankdef} explicitely.
-    ##!}
-    
-    ##!\references{
-    ##!Rue, H. and Martino, S. and Chopin, N. (2008)
-    ##!\emph{Approximate Bayesian Inference for latent Gaussian models using
-    ##!Integrated Nested Laplace Approximations}
-    ##!
-    ##!Rue, H and Held, L. (2005)
-    ##!\emph{Gaussian Markov Random Fields - Theory and Applications}
-    ##!Chapman and Hall
-    ##!
-    ##!  Martino, S. and Rue, H. (2008)
-    ##!\emph{Implementing Approximate Bayesian Inference using Integrated
-    ##!Nested Laplace Approximation: a manual for the inla program}
-    ##!Preprint N.2 from Dep. of Mathematical Sciences (NTNU Norway)
-    ##!}
-    ##!\author{ Sara Martino, Havard Rue \email{hrue@math.ntnu.no} }
-    
-    ##!\seealso{ \code{\link{inla}},  \code{\link{hyperpar.inla}}}
+    ##!must define the \code{rankdef} explicitely.}
+    ##!\author{Havard Rue \email{hrue@math.ntnu.no}}
+    ##!\seealso{\code{\link{inla}}, \code{\link{hyperpar.inla}}}
 
     ## this is a nice trick
     if (!is.null(copy)) {
@@ -262,13 +248,15 @@ function(
         copy = NULL
     } 
 
-    if (model == "copy")
-
     if (is.null(model)) {
         stop("No model is specified.")
     }
-    inla.is.model(model, stop.on.error=TRUE)
+    inla.is.model(model, "latent", stop.on.error=TRUE)
     
+    ## set the hyperparameters
+    hyper = inla.set.hyper(model = model,  section = "latent", hyper = hyper, 
+            initial = initial, fixed = fixed,  prior = prior,  param = param)
+
     ## for model = copy, its is not allowed to define constr or extraconstr
     if (inla.one.of(model, "copy")) {
         stopifnot(missing(constr))
@@ -285,6 +273,8 @@ function(
     inla.check.control(control.group)
     cont.group = inla.set.control.group.default()
     cont.group[(namc = names(control.group))] = control.group
+    cont.group$hyper = inla.set.hyper(cont.group$model, "group", cont.group$hyper,
+            cont.group$initial, cont.group$fixed, cont.group$prior, cont.group$param) 
     
     ## CHECK ARGUMENTS.
     ## This is a bit tricky. We want to check if there are arguments
@@ -292,10 +282,16 @@ function(
     ## so, this lead to an obscoure error later on...
     ##
     ## we first collect all arguments of type `name = value'
-    args.eq = c() 
-    for (arg in unlist(strsplit(as.character(as.expression(match.call(expand.dots=TRUE))), ","))) {
-        if (length(grep("=", arg)) > 0) {
-            args.eq = c(args.eq, gsub(" ", "", unlist(strsplit(arg, "="))[1]))
+    if (TRUE) {
+        ## New code
+        args.eq = names(match.call(expand.dots = TRUE))
+        args.eq = args.eq[ args.eq != "" ]
+    } else {
+        args.eq = c() 
+        for (arg in unlist(strsplit(as.character(as.expression(match.call(expand.dots=TRUE))), ","))) {
+            if (length(grep("=", arg)) > 0) {
+                args.eq = c(args.eq, gsub(" ", "", unlist(strsplit(arg, "="))[1]))
+            }
         }
     }
     
@@ -304,7 +300,7 @@ function(
     ## flag an error its not among the legal ones.  OOPS: Need to add
     ## some dummy arguments which are those inside the extraconstr and
     ## Cmatrix argument, and inla.group() as well.
-    if (TRUE) {
+    if (FALSE) {
         arguments = c(names(formals(INLA::f)), "A", "e")
     } else {
         warning("Recall to revert back into INLA::f")
@@ -377,21 +373,24 @@ function(
     }
 
     ## is N required?
-    if (is.null(n) && (!is.null(inla.model.properties(model)$n.required) && inla.model.properties(model)$n.required)) {
+    if (is.null(n) && (!is.null(inla.model.properties(model, "latent")$n.required)
+                       && inla.model.properties(model, "latent")$n.required)) {
         stop(paste("Argument `n' in f() is required for model:", model))
     }
     
     ## special N required?
-    if ((!is.null(inla.model.properties(model)$n.div.by) && inla.model.properties(model)$n.div.by) && !is.null(n)) {
-        if (!inla.divisible(n, inla.model.properties(model)$n.div.by)) {
-            stop(paste("Argument `n'", n, "is not divisible by", inla.model.properties(model)$n.div.by))
+    if ((!is.null(inla.model.properties(model, "latent")$n.div.by)
+         && inla.model.properties(model, "latent")$n.div.by) && !is.null(n)) {
+        if (!inla.divisible(n, inla.model.properties(model, "latent")$n.div.by)) {
+            stop(paste("Argument `n'", n, "is not divisible by", inla.model.properties(model, "latent")$n.div.by))
         }
     }
 
     ## set default 'values'?  Do the check for values for nrow.ncol
     ## models further below.
     if (!is.null(n) && is.null(values) &&
-        (!is.null(inla.model.properties(model)$set.default.values) && inla.model.properties(model)$set.default.values)) {
+        (!is.null(inla.model.properties(model, "latent")$set.default.values)
+         && inla.model.properties(model, "latent")$set.default.values)) {
         values = 1:n
     }
 
@@ -426,14 +425,6 @@ function(
         ## file ``PREFIXs'' must exists... test this one
         if (!(file.exists(paste(spde.prefix, "s", sep="")))) {
             stop(paste("Argument spde.prefix=", spde.prefix, "does not seems to be valid (no file `PREFIXs')"))
-        }
-
-        ## set the Occilation parameter default to fixed, unless its set already
-        if (missing(fixed)) {
-            fixed = c(FALSE, FALSE, FALSE, TRUE)
-        }
-        if (missing(initial)) {
-            initial = c(NA, NA, NA,-20)
         }
     } 
         
@@ -470,7 +461,7 @@ function(
         stop("Cyclic defined only for rw1, rw1c2, rw2, rw2c2 and rw2d models")
     }
 
-    need.nrow.ncol = inla.model.properties(model)$nrow.ncol
+    need.nrow.ncol = inla.model.properties(model, "latent")$nrow.ncol
     ## nrow/ncol
     if ((!is.null(nrow) || !is.null(ncol)) && !need.nrow.ncol) {
         stop(paste("nrow and ncol are not needed for model = ", model))
@@ -491,7 +482,7 @@ function(
         }
 
         ## and set default values, if required
-        if (inla.model.properties(model)$set.default.values) {
+        if (inla.model.properties(model, "latent")$set.default.values) {
             if (missing(values)) {
                 values = 1:n
             } else {
@@ -520,7 +511,7 @@ function(
     ##for all instrinsic model the constraint has to be ON...
     ##...except if the rw is cyclic!!!!!
     if (is.null(constr)) {
-        constr = inla.model.properties(model)$constr
+        constr = inla.model.properties(model, "latent")$constr
         if (!is.null(cyclic) && cyclic) {
             constr=FALSE
         }
@@ -555,70 +546,19 @@ function(
         ##    "e=", deparse(extraconstr$e, backtick = TRUE, width.cutoff = 500),")")
     }
 
-    prop = inla.model.properties(model, stop.on.error=TRUE)
-    if (!is.null(param)) {
-        if (length(param) != prop$nparameters) {
-            stop(paste("The length of `param' in ", model, " has to be ", prop$nparameters))
-        }
-    }
-
-    ## FIXED and no INITIAL
-    if (is.null(initial) && !is.null(fixed) && !all(fixed == FALSE)) {
-        stop("The fixed hyperparameters in model", model,"needs initialisation; use initial=c(....)")
-    }
-        
-    ## exceptions to default fixed = 0...
-    if (model == "copy" && is.null(fixed)) {
-        fixed = 1
-        if (is.null(initial)) {
-            initial = 1
-        }
-    }
-
-    if (!is.null(initial)) {
-        if (length(initial) != prop$ntheta && !is.na(prop$ntheta)) {
-            stop(paste("The length of `initial' on model", model,"has to be ", prop$ntheta))
-        }
-    }
-        
-    if (!is.null(fixed)) {
-        if (length(fixed) != prop$ntheta && !is.na(prop$ntheta)) {
-            stop(paste("The length of `fixed' on model", model,"has to be ", prop$ntheta))
-        }
-    } else {
-        if (prop$ntheta && !is.na(prop$ntheta)) {
-            fixed = rep(0, prop$ntheta)
-        } else {
-            fixed = NULL
-        }
-    }
-    
-    if (!is.null(fixed)) {
-        for(j in 1:prop$ntheta) {
-            if (fixed[j] && !is.numeric(initial[j])) {
-                stop(paste("Model ", model, ", parameter no ", j, ", is fixed but has no intial value", sep=""))
-            }
-        }
-    }
-
-    if (!is.null(prior)) {
-        if (length(prior) != prop$npriors) {
-            stop(paste("Prior specification for model", model,"must contains", prop$npriors, "terms"))
-        }
-        for(i in 1:length(prior)) {
-            if (!is.null(prior[i])) {
-                inla.is.prior(prior[i], stop.on.error=TRUE)
-            }
-        }
-    }
-
     if (inla.one.of(model, c("besag", "besag2", "bym"))) {
 
-        ## I am not sure if this is the best place to do this, but...
+        ## I am not sure if this is the best place to do this, but for
+        ## the time being I'll do this here.
+
         ## For the model = "besag", "bym" and "besag2", we need to
         ## check if the graph contains more than 1 connected
         ## components. If so, we need to modify the meaning of
         ## constr=TRUE, and set the correct value of rankdef.
+
+        ## However, although this is the correct way to do this, it is
+        ## not common to do it like this, so therefore, I issue a
+        ## warning.
 
         g = inla.read.graph(graph.file)
         if (g$cc$n == 1) {
@@ -645,7 +585,7 @@ function(
                 ## constr=TRUE for all connected components with size > 1
 
                 ## like bym place the constr on the second half
-                m = inla.model.properties(model)
+                m = inla.model.properties(model, "latent")
                 if (m$augmented) {
                     N = m$aug.factor * n
                     offset = (m$aug.constr -1L) * n
@@ -704,16 +644,18 @@ function(
         }
     }
 
-    ret=list(d=d, term=term, weights=weights, n=n, nrep = nrep, replicate = replicate,
-            ngroup = ngroup, group = group, control.group = cont.group,
-            Z=Z, model=model, prior=prior, same.as = same.as,
-            initial=initial, diagonal = diagonal, param = param,  fixed = fixed,
-            cyclic=cyclic, season.length=season.length, 
-            constr = constr, label=term, graph.file=graph.file, cdf=cdf, quantiles = quantiles,
-            Cmatrix = Cmatrix, rankdef=rankdef, extraconstr=extraconstr, values=values,
-            nrow = nrow, ncol = ncol, nu = nu, bvalue = bvalue,
-            of = of, precision = precision, si = si, compute = compute,
-            spde.prefix = spde.prefix, range = range )
+    ret=list(d=d, term=term, weights=weights, n=n, nrep = nrep,
+            replicate = replicate, ngroup = ngroup, group = group,
+            control.group = cont.group, Z=Z,
+            model=model, hyper = hyper,
+            same.as = same.as, diagonal = diagonal,
+            cyclic=cyclic, season.length = season.length, constr =
+            constr, label = term, graph.file=graph.file, cdf=cdf,
+            quantiles = quantiles, Cmatrix = Cmatrix, rankdef=rankdef,
+            extraconstr=extraconstr, values=values, nrow = nrow, ncol
+            = ncol, nu = nu, bvalue = bvalue, of = of, precision =
+            precision, si = si, compute = compute, spde.prefix =
+            spde.prefix, range = range)
 
     return (ret)
 }
