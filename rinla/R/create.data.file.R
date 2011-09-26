@@ -1,0 +1,203 @@
+`inla.create.data.file` = function(
+        y.orig = NULL,
+        MPredictor = NULL,
+        mf=NULL,
+        scale=NULL,
+        E=NULL,
+        Ntrials=NULL,
+        strata=NULL, 
+        event=NULL,
+        family=NULL,
+        data.dir=NULL,
+        file=NULL,
+        debug=FALSE)
+{
+    if (is.null(y.orig)) {
+        y.orig = c(mf[, 1L])
+    } else if (inherits(y.orig, "inla.surv")) {
+        y.orig = as.data.frame(unclass(y.orig))
+    } else {
+        y.orig = as.data.frame(y.orig)
+    }
+
+    n.data = dim(y.orig)[1L]
+    ind=seq(0L, n.data-1L)
+
+    if (debug) {
+        cat("inla.create.data.file: n.data = ", n.data, "\n")
+    }
+    
+    if (inla.one.of(family, c("gaussian",
+                              "normal",
+                              "t",
+                              "laplace",
+                              "sn",
+                              "skewnormal",
+                              "gev",
+                              "logistic",
+                              "sas",
+                              "iidgamma"))) {
+
+        if (is.null(scale)) {
+            scale = rep(1.0, n.data)
+        }
+        if (length(scale) == 1L) {
+            scale = rep(scale, n.data)
+        }
+
+        if (length(scale) != n.data) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop(paste("Length of scale has to be the same as the length of the response:", length(scale), n.data))
+        }
+
+        response = cbind(ind, scale, y.orig)
+        null.dat = is.na(response[, 3L])
+        response = response[!null.dat,]
+
+    } else if (inla.one.of(family, c("tstrata"))) {
+
+        if (is.null(scale)) {
+            scale = rep(1.0, n.data)
+        }
+        if (length(scale) == 1L) {
+            scale = rep(scale, n.data)
+        }
+
+        if (is.null(strata)) {
+            strata = as.factor(rep(1L, n.data))
+        }
+        if (length(strata) == 1L) {
+            strata = rep(strata, n.data)
+        }
+
+        ## need strata to be a factor or integer,  but factor works for numeric() as well
+        strata = as.factor(strata)
+
+        if (length(scale) != n.data || length(strata) != n.data) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop(paste("Length of scale and strata has to be the same as the length of the response:", length(scale), length(strata), n.data))
+        }
+
+        ## strata goes from 0L to nstrata-1L,  therefore subtract 1L.
+        response = cbind(ind, scale, as.integer(strata)-1L, y.orig)
+        null.dat = is.na(response[, 4L])
+        response = response[!null.dat,]
+
+    } else if (inla.one.of(family, c("poisson",
+                                     "zeroinflatedpoisson0",
+                                     "zeroinflatedpoisson1", 
+                                     "zeroinflatedpoisson2", 
+                                     "nbinomial",
+                                     "zeroinflatednbinomial0",
+                                     "zeroinflatednbinomial1",
+                                     "zeroinflatednbinomial2"))) {
+
+        if (is.null(E)) {
+            E = rep(1.0, n.data)
+        }
+        if (length(E) == 1L) {
+            E = rep(E, n.data)
+        }
+
+        response = cbind(ind, E, y.orig)
+
+        if (length(E) != n.data) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop(paste("Length of E has to be the same as the length of the response:", length(E), n.data))
+        }
+
+        null.dat = is.na(response[, 3L])
+        response = response[!null.dat,]
+
+    } else if (inla.one.of(family,
+                           c("binomial",
+                             "zeroinflatedbinomial0",
+                             "zeroinflatedbinomial1",
+                             "zeroinflatedbinomial2",
+                             "zeroninflatedbinomial2",
+                             "zeroinflatedbetabinomial2"))) {
+
+        if (is.null(Ntrials)) {
+            Ntrials = rep(1L, n.data)
+        }
+        if (length(Ntrials) == 1L) {
+            Ntrials = rep(Ntrials, n.data)
+        }
+
+        response = cbind(ind, Ntrials, y.orig)
+        null.dat = is.na(response[, 3L])
+        response = response[!null.dat,]
+
+    } else if (inla.one.of(family, c("exponential", "weibull", "weibullcure", "loglogistic",  "lognormal"))) {
+
+        if (!inla.model.properties(family, "likelihood")$survival) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop("This should not happen.")
+        }
+
+        if (is.null(y.orig$truncation)) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop("Responce does not contain variable `truncation'.")
+        }
+        if (is.null(y.orig$lower)) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop("Responce does not contain variable `lower'.")
+        }
+        if (is.null(y.orig$upper)) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop("Responce does not contain variable `upper'.")
+        }
+        if (is.null(y.orig$event)) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop("Responce does not contain variable `event'.")
+        }
+        if (is.null(y.orig$time)) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop("Responce does not contain variable `time'.")
+        }
+
+        idx = !is.na(y.orig$time)
+        response = cbind(ind[idx], y.orig$event[idx], y.orig$truncation[idx], y.orig$lower[idx], y.orig$upper[idx], y.orig$time[idx])
+
+        if (any(is.na(response))) {
+            file.remove(file)
+            file.remove(data.dir)
+            stop("NA in truncation/event/lower/upper/time is not allowed")
+        }
+
+    } else if (inla.one.of(family, c("stochvol", "stochvolt", "stochvolnig", "loggammafrailty"))) {
+
+        response = cbind(ind, y.orig)
+        null.dat = is.na(response[, 2L])
+        response = response[!null.dat,]
+
+    } else {
+
+        file.remove(file)
+        file.remove(data.dir)
+        stop(paste("Family", family, ", not recognised in 'create.data.file.R'"))
+
+    }
+
+
+    file.data = inla.tempfile(tmpdir=data.dir)
+    if (inla.getOption("internal.binary.mode")) {
+        inla.write.fmesher.file(as.matrix(response), filename = file.data, debug=debug)
+    } else {
+        file.create(file.data)
+        write(t(response), ncolumns=ncol(response), file=file.data, append=FALSE)
+    }
+
+    file.data = gsub(data.dir, "$inladatadir", file.data, fixed=TRUE)
+
+    return(file.data)
+}
