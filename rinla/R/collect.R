@@ -1,0 +1,1370 @@
+
+### AUXILIARY FUNCTIONS TO COLLECT RESULTS FROM THE DIRECTORY
+### "inla.model/results.files" or any directory where the results from a
+### inla run are stored
+
+## temporary only...
+inla.internal.experimental.mode = FALSE
+
+
+`inla.collect.misc` = function(dir, debug = FALSE)
+{
+    d = paste(dir,"/misc", sep="")
+    d.info = file.info(d)$isdir
+
+    if (debug)
+        print(paste("collect misc from", d))
+
+    if (is.na(d.info) || (d.info == FALSE))
+        return (NULL)
+    
+    fnm = paste(d, "/theta-tags", sep="")
+    if (file.exists(fnm)) {
+        tags = readLines(fnm)
+    } else {
+        tags = NULL
+    }
+
+    fnm = paste(d, "/theta-from", sep="")
+    if (file.exists(fnm)) {
+        theta.from = readLines(fnm)
+        ## evaluate these as functions
+        theta.from = lapply(theta.from, inla.source2function)
+        if (!is.null(tags)) {
+            names(theta.from) = tags
+        }
+    } else {
+        theta.from = NULL
+    }
+
+    fnm = paste(d, "/theta-to", sep="")
+    if (file.exists(fnm)) {
+        theta.to = readLines(fnm)
+        ## evaluate these as functions
+        theta.to = lapply(theta.to, inla.source2function)
+        if (!is.null(tags)) {
+            names(theta.to) = tags
+        }
+    } else {
+        theta.to = NULL
+    }
+        
+    fnm = paste(d, "/covmat-hyper-internal.dat", sep="")
+    if (file.exists(fnm)) {
+        siz = inla.read.binary.file(fnm)
+        n = siz[1L]
+        stopifnot(length(siz) == n^2L + 1L)
+
+        cov.intern = matrix(siz[-1L], n, n)
+        dd = diag(cov.intern)
+        s = matrix(0.0, n, n)
+        diag(s) = 1.0/sqrt(dd)
+        cor.intern = s %*% cov.intern %*% s
+        diag(cor.intern) = 1.0
+    } else {
+        cov.intern = NULL
+        cor.intern = NULL
+    }
+
+    fnm = paste(d, "/covmat-eigenvectors.dat", sep="")
+    if (file.exists(fnm)) {
+        siz = inla.read.binary.file(fnm)
+        n = siz[1L]
+        stopifnot(length(siz) == n^2L + 1L)
+        cov.intern.eigenvectors = matrix(siz[-1L], n, n)
+    } else {
+        cov.intern.eigenvectors = NULL
+    }
+
+    fnm = paste(d, "/covmat-eigenvalues.dat", sep="")
+    if (file.exists(fnm)) {
+        siz = inla.read.binary.file(fnm)
+        n = siz[1L]
+        stopifnot(length(siz) == n + 1L)
+        cov.intern.eigenvalues = siz[-1L]
+    } else {
+        cov.intern.eigenvalues = NULL
+    }
+
+    fnm = paste(d, "/reordering.dat", sep="")
+    if (file.exists(fnm)) {
+        r = as.integer(inla.read.binary.file(fnm))
+    } else {
+        r = NULL
+    }
+
+    fnm = paste(d, "/stdev_corr_pos.dat", sep="")
+    if (file.exists(fnm)) {
+        stdev.corr.positive = as.numeric(inla.read.fmesher.file(fnm))
+    } else {
+        stdev.corr.positive = NULL
+    }
+
+    fnm = paste(d, "/stdev_corr_neg.dat", sep="")
+    if (file.exists(fnm)) {
+        stdev.corr.negative = as.numeric(inla.read.fmesher.file(fnm))
+    } else {
+        stdev.corr.negative = NULL
+    }
+    
+    fnm = paste(d, "/lincomb_derived_correlation_matrix.dat",  sep="")
+    if (file.exists(fnm)) {
+        lincomb.derived.correlation.matrix = inla.read.fmesher.file(fnm)
+    } else {
+        lincomb.derived.correlation.matrix = NULL
+    }
+        
+    fnm = paste(d, "/mode-status.dat", sep="")
+    if (file.exists(fnm)) {
+        mode.status = scan(fnm)
+    } else {
+        mode.status = NA
+    }
+    
+    if (debug)
+        print(paste("collect misc from", d, "...done"))
+
+    return (list(cov.intern = cov.intern, cor.intern = cor.intern,
+                 cov.intern.eigenvalues = cov.intern.eigenvalues, cov.intern.eigenvectors = cov.intern.eigenvectors, 
+                 reordering = r, theta.tags = tags,
+                 stdev.corr.negative = stdev.corr.negative, stdev.corr.positive = stdev.corr.positive,
+                 to.theta = theta.to, from.theta = theta.from, mode.status = mode.status, 
+                 lincomb.derived.correlation.matrix = lincomb.derived.correlation.matrix))
+}
+
+`inla.collect.size` = function(dir, debug = FALSE)
+{
+    fnm = paste(dir, "/size.dat", sep="")
+    siz = inla.read.binary.file(fnm)
+    if (length(siz) != 5L)
+        stop(paste("length of siz is not 5L: fnm=", fnm))
+
+    if (is.na(siz[1L]) || siz[1L] < 0L) stop("siz[1L] = NA")
+    if (is.na(siz[2L]) || siz[2L] <= 0L) siz[2L] = siz[1L]
+    if (is.na(siz[3L]) || siz[3L] <= 0L) siz[3L] = siz[2L]
+    if (is.na(siz[4L]) || siz[4L] <= 0L) siz[4L] = 1L
+    if (is.na(siz[5L]) || siz[5L] <= 0L) siz[5L] = 1L
+
+    return (list(n=siz[1L], N = siz[2L], Ntotal = siz[3L], ngroup = siz[4L], nrep=siz[5L]))
+}
+
+`inla.collect.fixed` = function(results.dir, debug = FALSE)
+{
+    alldir=dir(results.dir)
+    if (debug)
+        print("collect fixed effects")
+    
+    ## read FIXED EFFECTS
+    fix = alldir[grep("^fixed.effect", alldir)]
+    fix = c(fix, alldir[grep("^intercept$", alldir)])
+    n.fix = length(fix)
+
+    ##read the names of the fixed effects
+    if (n.fix > 0L) {
+        names.fixed = inla.trim(character(n.fix))
+        for(i in 1L:n.fix) {
+            tag = paste(results.dir, .Platform$file.sep, fix[i], .Platform$file.sep,"TAG", sep="")
+            if (!file.exists(tag))
+                names.fixed[i] = "missing NAME"
+            else
+                names.fixed[i] = inla.namefix(readLines(tag, n=1L))
+        }
+        ##read summary the fixed effects
+        if (debug)
+            print(names.fixed)
+        
+        summary.fixed = numeric()
+        marginals.fixed = list()
+        marginals.fixed[[n.fix]] = NA
+        
+        for(i in 1L:n.fix) {
+            first.time = (i == 1L)
+            file =  paste(results.dir, .Platform$file.sep, fix[i], sep="")
+            dir.fix = dir(file)
+            if (length(dir.fix) > 3L) {
+                summ = inla.read.binary.file(paste(file, .Platform$file.sep,"summary.dat", sep=""))[-1L]
+                if (first.time)
+                    col.nam = c("mean","sd")
+            
+                ##read quantiles if existing
+                if (length(grep("^quantiles.dat$", dir.fix))>0L) {
+                    qq = inla.interpret.vector(inla.read.binary.file(paste(file, .Platform$file.sep, "quantiles.dat", sep="")),
+                            debug=debug)
+                    summ = c(summ, qq[, 2L])
+                    if (first.time)
+                        col.nam = c(col.nam, paste(as.character(qq[, 1L]),"quant", sep=""))
+                }
+
+                ##read quantiles if existing
+                if (length(grep("^cdf.dat$", dir.fix))>0L) {
+                    qq = inla.interpret.vector(inla.read.binary.file(paste(file, .Platform$file.sep, "cdf.dat", sep="")),
+                            debug=debug)
+                    summ = c(summ, qq[, 2L])
+                    if (first.time)
+                        col.nam = c(col.nam, paste(as.character(qq[, 1L]),"cdf", sep=""))
+                }
+            
+                ##read also kld distance
+                kld.fixed = inla.read.binary.file(paste(file, .Platform$file.sep,"symmetric-kld.dat", sep=""))[-1L]
+                summ = c(summ, kld.fixed)
+                if (first.time)
+                    col.nam = c(col.nam, "kld")
+                summary.fixed = rbind(summary.fixed, summ)
+
+                ##read the marginals
+                xx = inla.interpret.vector(inla.read.binary.file(paste(file, .Platform$file.sep,"marginal-densities.dat", sep="")),
+                        debug=debug)
+                if (is.null(xx))
+                    xx = cbind(c(NA, NA, NA), c(NA, NA, NA))
+                colnames(xx) = c("x", "y")
+                marginals.fixed[[i]] = xx
+
+                if (inla.internal.experimental.mode) {
+                    class(marginals.fixed[[i]]) = "inla.marginal"
+                    attr(marginals.fixed[[i]], "inla.tag") = paste("marginal fixed", names.fixed[i])
+                }
+            } else {
+                if (first.time)
+                    col.nam = c("mean", "sd", "kld")
+                summary.fixed = rbind(summary.fixed, c(NA, NA, NA))
+                xx = cbind(c(NA, NA, NA), c(NA, NA, NA))
+                colnames(xx) = c("x", "y")
+                marginals.fixed[[i]] = xx
+
+                if (inla.internal.experimental.mode) {
+                    class(marginals.fixed[[i]]) = "inla.marginal"
+                    attr(marginals.fixed[[i]], "inla.tag") = paste("marginal fixed", names.fixed[i])
+                }
+            }
+        }    
+        rownames(summary.fixed) = inla.namefix(names.fixed)
+        colnames(summary.fixed) = inla.namefix(col.nam)
+        if (length(marginals.fixed) > 0L) {
+            names(marginals.fixed) = inla.namefix(names.fixed)
+        }
+    }
+    else {
+        if (debug)
+            print("No fixed effects")
+        names.fixed=NULL
+        summary.fixed=NULL
+        marginals.fixed=NULL
+    }
+    
+    if (inla.internal.experimental.mode) {
+        class(marginals.fixed) = "inla.marginals"
+        attr(marginals.fixed,  "inla.tag", "marginals fixed")
+    }
+
+    ret = list(names.fixed=names.fixed, summary.fixed=summary.fixed, marginals.fixed=marginals.fixed)
+    return(ret)
+}
+
+`inla.collect.lincomb` =
+    function(results.dir,
+             debug = FALSE,
+             derived = TRUE)
+{
+    ## rewrite from collect.random
+    alldir = dir(results.dir)
+    if (derived) {
+        lincomb = alldir[grep("^lincomb.*derived[.]all", alldir)]
+    } else {
+        lincomb1 = alldir[grep("^lincomb.*derived[.]all", alldir)]
+        lincomb2 = alldir[grep("^lincomb", alldir)]
+        lincomb = setdiff(lincomb2, lincomb1)
+        if (debug)
+            print(paste("lincomb",  lincomb))
+    }        
+    n.lincomb = length(lincomb)
+    if (debug)
+        print("collect lincombs")
+
+    ##read the names and model of the lincomb effects
+    if (n.lincomb > 0L) {
+        names.lincomb = inla.namefix(character(n.lincomb))
+        model.lincomb = inla.trim(character(n.lincomb))
+
+        summary.lincomb = list()
+        summary.lincomb[[n.lincomb]] = NA
+        marginals.lincomb = list()
+        marginals.lincomb[[n.lincomb]] = NA
+        size.lincomb = list()
+        size.lincomb[[n.lincomb]] = NA
+ 
+        for(i in 1L:n.lincomb) {
+            if (debug)
+                print(paste("read lincomb ", i , " of ", n.lincomb))
+
+            ##read the summary
+            file= paste(results.dir, .Platform$file.sep, lincomb[i], sep="")
+            dir.lincomb = dir(file)
+
+            if (debug)
+                print(paste("read from dir ",  file))
+
+            if (length(dir.lincomb) > 4L) {
+                dd = matrix(inla.read.binary.file(file=paste(file, .Platform$file.sep,"summary.dat", sep="")),
+                        ncol=3L, byrow=TRUE)
+                col.nam = c("ID","mean","sd")
+            
+                ##read quantiles if existing
+                if (debug)
+                    cat("...quantiles.dat if any\n")
+                if (length(grep("^quantiles.dat$", dir.lincomb))==1L) {
+                    xx = inla.interpret.vector(inla.read.binary.file(paste(file, .Platform$file.sep,
+                            "quantiles.dat", sep="")), debug=debug)
+                    len = dim(xx)[2L]
+                    qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+                    col.nam = c(col.nam, paste(as.character(xx[, 1L]),"quant", sep=""))
+                    dd = cbind(dd, t(qq))
+                }
+
+                ##read cdf if existing
+                if (debug)
+                    cat("...cdf.dat if any\n")
+                if (length(grep("^cdf.dat$", dir.lincomb))==1L) {
+                    xx = inla.interpret.vector(inla.read.binary.file(paste(file, .Platform$file.sep,"cdf.dat", sep="")),
+                            debug=debug)
+                    len = dim(xx)[2L]
+                    qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+                    col.nam = c(col.nam, paste(as.character(xx[, 1L])," cdf", sep=""))
+                    dd = cbind(dd, t(qq))
+                }
+
+                if (debug)
+                    cat("...NAMES if any\n")
+                if (length(grep("^NAMES$", dir.lincomb))==1L) {
+                    row.names = readLines(paste(file, .Platform$file.sep,"NAMES", sep=""))
+                    ## remove the prefix 'lincomb.' as we do not need it in the names.
+                    row.names = sapply(row.names, function(x) gsub("^lincomb[.]", "", x))
+                    names(row.names) = NULL
+                } else {
+                    row.names = NULL
+                }
+                
+                ##read kld
+                if (debug)
+                    cat("...kld\n")
+                kld1 = matrix(inla.read.binary.file(file=paste(file, .Platform$file.sep,"symmetric-kld.dat", sep="")),
+                        ncol=2L, byrow=TRUE)
+                qq = kld1[, 2L, drop=FALSE]
+                dd = cbind(dd, qq)
+                if (debug)
+                    cat("...kld done\n")
+            
+                col.nam = c(col.nam, "kld")
+                colnames(dd) = inla.namefix(col.nam)
+                summary.lincomb[[i]] = as.data.frame(dd)
+                if (!is.null(row.names)) {
+                    rownames(summary.lincomb[[i]]) = row.names
+                }
+
+                xx = inla.read.binary.file(paste(file, .Platform$file.sep,"marginal-densities.dat", sep=""))
+                rr = inla.interpret.vector.list(xx, debug=debug)
+                rm(xx)
+                if (!is.null(rr)) {
+                    nd = length(rr)
+                    names(rr) = inla.namefix(paste("index.", as.character(1L:nd), sep=""))
+                    for(j in 1L:nd) {
+                        colnames(rr[[j]]) = inla.namefix(c("x", "y"))
+                        if (inla.internal.experimental.mode) {
+                            class(rr[[j]]) = "inla.marginal"
+                            if (derived) {
+                                attr(rr[[j]], "inla.tag") = paste("marginal lincomb derived", names(rr)[j])
+                            } else {
+                                attr(rr[[j]], "inla.tag") = paste("marginal lincomb", names(rr)[j])
+                            }
+                        }
+                    }
+                }
+                marginals.lincomb[[i]] = rr
+                
+                if (!is.null(row.names) && (length(marginals.lincomb)>0L)) {
+                    names(marginals.lincomb[[i]]) = row.names
+                }
+            } else {
+                N.file = paste(file, .Platform$file.sep,"N", sep="")
+                if (!file.exists(N.file)) {
+                    N = 0L
+                } else {
+                    N = scan(file=N.file, what = numeric(0L), quiet=TRUE)
+                }
+                summary.lincomb[[i]] = data.frame("mean" = rep(NA, N), "sd" = rep(NA, N), "kld" = rep(NA, N))
+                marginals.lincomb = NULL
+            }
+            size.lincomb[[i]] = inla.collect.size(file)
+
+            if (inla.internal.experimental.mode) {
+                if (!is.null(marginals.lincomb)) {
+                    class(marginals.lincomb[[i]]) = "inla.marginals"
+                    if (derived) {
+                        attr(marginals.lincomb[[i]], "inla.tag") = "marginal lincomb derived"
+                    } else {
+                        attr(marginals.lincomb[[i]], "inla.tag") = "marginal lincomb"
+                    }                    
+                }
+            }
+        }
+        names(summary.lincomb) = inla.namefix(names.lincomb)
+
+        ## could be that marginals.lincomb is a list of lists of NULL
+        if (!is.null(marginals.lincomb)) {
+            if (all(sapply(marginals.lincomb, is.null)))
+                marginals.lincomb = NULL
+        }
+
+        if (!is.null(marginals.lincomb) && (length(marginals.lincomb) > 0L))
+            names(marginals.lincomb) = inla.namefix(names.lincomb)
+    } else {
+        if (debug)
+            cat("No lincomb effets\n")
+        summary.lincomb=NULL
+        marginals.lincomb=NULL
+        size.lincomb = NULL
+    }
+
+    ## ensure that the results are sorted wrt the name
+    if (!is.null(summary.lincomb)) {
+        o = order(rownames(summary.lincomb[[1L]]))
+        summary.lincomb[[1L]] = summary.lincomb[[1L]][o, ]
+    }
+    if (!is.null(marginals.lincomb)) {
+        if (length(marginals.lincomb) > 0L) {
+            nm = names(marginals.lincomb[[1L]])
+            o = order(nm)
+            new.marginals.lincomb = marginals.lincomb
+            for(i in 1:length(nm)) {
+                new.marginals.lincomb[[1L]][[i]] = marginals.lincomb[[1L]][[o[i]]]
+            }
+            names(new.marginals.lincomb[[1L]]) = nm[o]
+            marginals.lincomb = new.marginals.lincomb
+            rm(new.marginals.lincomb)
+        }
+    }
+    
+    if (derived) {
+        res = list(summary.lincomb.derived = summary.lincomb[[1L]],
+                marginals.lincomb.derived = inla.ifelse(length(marginals.lincomb) > 0L, marginals.lincomb[[1L]], NULL), 
+                size.lincomb.derived = size.lincomb[[1L]])
+    } else {
+        res = list(summary.lincomb = summary.lincomb[[1L]],
+                marginals.lincomb = inla.ifelse(length(marginals.lincomb)>0L, marginals.lincomb[[1L]], NULL), 
+                size.lincomb = size.lincomb[[1L]])
+    }
+    return(res)
+}
+
+`inla.collect.cpo` =
+    function(results.dir,
+             debug = FALSE)
+{
+    alldir = dir(results.dir)
+    if (length(grep("^cpo$", alldir))==1L) {
+        if (debug)
+            cat(paste("collect cpo\n", sep=""))
+      
+        xx = inla.read.binary.file(file=paste(results.dir, .Platform$file.sep,"cpo", .Platform$file.sep,"cpo.dat", sep=""))
+        n = xx[1L]
+        xx = xx[-1L]
+        len = length(xx)
+        cpo.res=numeric(n)
+        cpo.res[1L:n] = NA
+        cpo.res[xx[seq(1L, len, by=2L)] +1L] = xx[seq(2L, len, by=2L)]
+        
+        xx = inla.read.binary.file(file=paste(results.dir, .Platform$file.sep,"cpo", .Platform$file.sep,"pit.dat", sep=""))
+        n = xx[1L]
+        xx = xx[-1L]
+        len = length(xx)
+        pit.res = numeric(n)
+        pit.res[1L:n] = NA
+        pit.res[xx[seq(1L, len, by=2L)] +1L] = xx[seq(2L, len, by=2L)]
+
+        fnm=paste(results.dir, .Platform$file.sep,"cpo", .Platform$file.sep,"failure.dat", sep="")
+        if (file.exists(fnm)) {
+            xx = inla.read.binary.file(fnm)
+            n = xx[1L]
+            xx = xx[-1L]
+            len = length(xx)
+            failure.res = numeric(n)
+            failure.res[1L:n] = NA
+            failure.res[xx[seq(1L, len, by=2L)] +1L] = xx[seq(2L, len, by=2L)]
+        }
+        else
+            failure.res = NULL
+        rm(xx)
+    }
+    else {
+        cpo.res = NULL
+        pit.res = NULL
+        failure.res = NULL
+    }
+    return(list(cpo=cpo.res, pit=pit.res, failure=failure.res))
+}
+
+`inla.collect.dic` =
+    function(results.dir,
+             debug = FALSE)
+{
+    alldir = dir(results.dir)
+    ## get dic (if exists)
+    if (length(grep("^dic$", alldir))==1L) {
+        if (debug)
+            cat(paste("collect dic\n", sep=""))
+        file=paste(results.dir, .Platform$file.sep,"dic", .Platform$file.sep,"dic.dat", sep="")
+        dic.values = inla.read.binary.file(file)
+
+        file=paste(results.dir, .Platform$file.sep,"dic", .Platform$file.sep,"deviance_e.dat", sep="")
+        if (inla.is.fmesher.file(file)) {
+            dev.e = c(inla.read.fmesher.file(file))
+        } else {
+            dev.e = NULL
+        }
+
+        file=paste(results.dir, .Platform$file.sep,"dic", .Platform$file.sep,"e_deviance.dat", sep="")
+        if (inla.is.fmesher.file(file)) {
+            e.dev = c(inla.read.fmesher.file(file))
+        } else {
+            e.dev = NULL
+        }
+        dic = list(
+                "dic" = dic.values[4L],
+                "p.eff"= dic.values[3L],
+                "local.dic" = 2.0*e.dev - dev.e, 
+                "local.p.eff" = e.dev - dev.e, 
+                "mean.deviance" = dic.values[1L],
+                "deviance.mean" = dic.values[2L])
+    } else {
+        dic = NULL
+    }
+    return(dic)     
+}
+
+`inla.collect.q` =
+    function(results.dir,
+             image.dim = 256,
+             debug = FALSE)
+{
+    alldir = dir(results.dir)
+    if (length(grep("^Q$", alldir))==1L) {
+        w = getOption("warn")
+        options(warn = -1L)
+        pixm = require("pixmap", quietly = TRUE)
+        options(warn = w)
+        
+        if (debug)
+            cat(paste("collect q\n", sep=""))
+        
+        file=paste(results.dir, .Platform$file.sep,"Q/precision-matrix.pbm", sep="")
+        if (file.exists(file) && pixm)
+            Q.matrix = inla.image.reduce(read.pnm(file), image.dim = image.dim)
+        else
+            Q.matrix = NULL
+        
+        file=paste(results.dir, .Platform$file.sep,"Q/precision-matrix-reordered.pbm", sep="")
+        if (file.exists(file) && pixm)
+            Q.matrix.reorder = inla.image.reduce(read.pnm(file), image.dim = image.dim)
+        else
+            Q.matrix.reorder = NULL
+        
+        file=paste(results.dir, .Platform$file.sep,"Q/precision-matrix_L.pbm", sep="")
+        if (file.exists(file) && pixm)
+            L = inla.image.reduce(read.pnm(file), image.dim = image.dim)
+        else
+            L = NULL
+
+        if (is.null(Q.matrix) && is.null(Q.matrix.reorder) && is.null(L))
+            q = NULL
+        else
+            q = list(Q.matrix = Q.matrix, Q.matrix.reorder = Q.matrix.reorder, L = L)
+    }
+    return(q)     
+}
+
+`inla.collect.graph` =
+    function(results.dir,
+             debug = FALSE)
+{
+    alldir = dir(results.dir)
+    if (length(grep("^graph.dat$", alldir))==1L) {
+
+        if (debug) {
+            cat(paste("collect graph\n", sep=""))
+        }
+        file=paste(results.dir, .Platform$file.sep,"graph.dat", sep="")
+        g = inla.read.graph(file)
+    } else {
+        g = NULL
+    }
+
+    return (list(graph = g))
+}
+
+`inla.collect.hyperpar` =
+    function(results.dir,
+             debug=FALSE)
+{
+    alldir = dir(results.dir)
+    all.hyper = alldir[grep("^hyperparameter", alldir)]
+    hyper = all.hyper[grep("user-scale$", all.hyper)]
+    n.hyper = length(hyper)
+    if (n.hyper > 0L) {
+        ## get names for hyperpar
+        names.hyper = character(n.hyper)
+        for(i in 1L:n.hyper) {
+            tag = paste(results.dir, .Platform$file.sep, hyper[i], .Platform$file.sep,"TAG", sep="")
+            if (!file.exists(tag)) {
+                names.hyper[i] = "missing NAME"
+            } else {
+                names.hyper[i] = inla.namefix(readLines(tag, n=1L))
+            }
+        }
+
+        ## get summary and marginals
+        summary.hyper = numeric()
+        marginal.hyper = list()
+        marginal.hyper[[n.hyper]] = NA
+        
+        for(i in 1L:n.hyper) {
+            first.time = (i == 1L)
+            dir.hyper =  paste(results.dir, .Platform$file.sep, hyper[i], sep="")
+            file = paste(dir.hyper, .Platform$file.sep,"summary.dat", sep="")
+            dd = inla.read.binary.file(file)[-1L]
+            summ = dd
+            if (first.time)
+                col.nam = c("mean","sd")
+            if (length(grep("^quantiles.dat$", dir(dir.hyper)))>0L) {
+                qq = inla.interpret.vector(inla.read.binary.file(paste(dir.hyper, .Platform$file.sep, "quantiles.dat", sep="")),
+                        debug=debug)
+                summ = c(summ, qq[, 2L])
+                if (first.time)
+                    col.nam = c(col.nam, paste(as.character(qq[, 1L]),"quant", sep=""))
+            }
+            if (length(grep("^cdf.dat$", dir(dir.hyper)))>0L) {
+                qq = inla.interpret.vector(inla.read.binary.file(paste(dir.hyper, .Platform$file.sep, "cdf.dat", sep="")),
+                        debug=debug)
+                summ = c(summ, qq[, 2L])
+                if (first.time)
+                    col.nam = c(col.nam, paste(as.character(qq[, 1L]),"cdf", sep=""))
+            }
+            summary.hyper = rbind(summary.hyper, summ)
+            file =paste(results.dir, .Platform$file.sep, hyper[i], .Platform$file.sep,"marginal-densities.dat", sep="")
+            xx = inla.read.binary.file(file)
+            marg1 = inla.interpret.vector(xx, debug=debug)
+            rm(xx)
+            if (!is.null(marg1)) {
+                colnames(marg1) = c("x","y")
+            }
+
+            if (inla.internal.experimental.mode) {
+                class(marg1) = "inla.marginal"
+                attr(marg1, "inla.tag") = paste("marginal hyper", names.hyper[i])
+            }
+            
+            marginal.hyper[[i]] = marg1
+        }
+        names(marginal.hyper) = inla.namefix(names.hyper)
+        rownames(summary.hyper) = inla.namefix(names.hyper)
+        colnames(summary.hyper) = inla.namefix(col.nam)
+    } else {
+        marginal.hyper=NULL
+        summary.hyper=NULL
+    }
+
+    if (inla.internal.experimental.mode) {
+        if (!is.null(marginal.hyper)) {
+            class(marginal.hyper) = "inla.marginals"
+            attr(marginal.hyper, "inla.tag") = "marginal hyper"
+        }
+    }
+    
+    ## collect also the hyperparameters in the internal scale
+    all.hyper = alldir[grep("^hyperparameter", alldir)]
+    hyper = all.hyper[-grep("user-scale$", all.hyper)]
+    n.hyper = length(hyper)
+    if (n.hyper > 0L) {
+        ## get names for hyperpar
+        names.hyper = character(n.hyper)
+        for(i in 1L:n.hyper) {
+            tag = paste(results.dir, .Platform$file.sep, hyper[i], .Platform$file.sep,"TAG", sep="")
+            if (!file.exists(tag))
+                names.hyper[i] = "missing NAME"
+            else
+                names.hyper[i] = inla.namefix(readLines(tag, n=1L))
+        }
+
+        ## get summary and marginals
+        internal.summary.hyper = numeric()
+        internal.marginal.hyper = list()
+        internal.marginal.hyper[[n.hyper]] = NA
+        for(i in 1L:n.hyper) {
+            first.time = (i == 1L)
+            dir.hyper =  paste(results.dir, .Platform$file.sep, hyper[i], sep="")
+            file = paste(dir.hyper, .Platform$file.sep,"summary.dat", sep="")
+            dd = inla.read.binary.file(file)[-1L]
+            summ = dd
+            if (first.time)
+                col.nam = c("mean","sd")
+            if (length(grep("^quantiles.dat$", dir(dir.hyper)))>0L) {
+                qq = inla.interpret.vector(inla.read.binary.file(paste(dir.hyper, .Platform$file.sep, "quantiles.dat", sep="")),
+                        debug=debug)
+                summ = c(summ, qq[, 2L])
+                if (first.time)
+                    col.nam = c(col.nam, paste(as.character(qq[, 1L]),"quant", sep=""))
+            }
+            if (length(grep("^cdf.dat$", dir(dir.hyper)))>0L) {
+                qq = inla.interpret.vector(inla.read.binary.file(paste(dir.hyper, .Platform$file.sep, "cdf.dat", sep="")),
+                        debug=debug)
+                summ = c(summ, qq[, 2L])
+                if (first.time)
+                    col.nam = c(col.nam, paste(as.character(qq[, 1L]),"cdf", sep=""))
+            }
+            if (first.time) {
+                internal.summary.hyper = matrix(NA, n.hyper, length(summ))
+            }
+            internal.summary.hyper[i, ] = summ
+            file =paste(results.dir, .Platform$file.sep, hyper[i], .Platform$file.sep,"marginal-densities.dat", sep="")
+            xx = inla.read.binary.file(file)
+            marg1 = inla.interpret.vector(xx, debug=debug)
+            rm(xx)
+            if (!is.null(marg1))
+                colnames(marg1) = c("x","y")
+
+            if (inla.internal.experimental.mode) {
+                class(marg1) = "inla.marginal"
+                attr(marg1, "inla.tag") = paste("marginal hyper internal", names.hyper[i])
+            }
+            
+            internal.marginal.hyper[[i]] = marg1
+        }
+        names(internal.marginal.hyper) = inla.namefix(names.hyper)
+        rownames(internal.summary.hyper) = inla.namefix(names.hyper)
+        colnames(internal.summary.hyper) = inla.namefix(col.nam)
+    }
+    else {
+        internal.summary.hyper=NULL
+        internal.marginal.hyper=NULL
+    }
+    
+    if (inla.internal.experimental.mode) {
+        if (!is.null(internal.marginal.hyper)) {
+            class(internal.marginal.hyper) = "inla.marginals"
+            attr(internal.marginal.hyper, "inla.tag") = "marginal hyper internal"
+        }
+    }
+    
+    ret=list(summary.hyperpar=summary.hyper,
+        marginals.hyperpar=marginal.hyper,
+        internal.summary.hyperpar = internal.summary.hyper,
+        internal.marginals.hyperpar = internal.marginal.hyper)
+    return(ret)
+}
+
+`inla.collect.mlik` =
+    function(results.dir,
+             debug = FALSE)
+{
+    alldir = dir(results.dir)
+    if (length(grep("^marginal-likelihood$", alldir))==1L) {
+        if (debug)
+            cat(paste("collect mlik\n", sep=""))
+        file=paste(results.dir, .Platform$file.sep,"marginal-likelihood",
+            .Platform$file.sep,"marginal-likelihood.dat", sep="")
+        mlik.res = matrix(inla.read.binary.file(file), 2L, 1L)
+        rownames(mlik.res) = inla.namefix(c("log marginal-likelihood (integration)",
+                    "log marginal-likelihood (Gaussian)"))
+    }
+    else
+        mlik.res = NULL
+
+    return(list(mlik=mlik.res))
+}
+
+`inla.collect.predictor` =
+    function(results.dir,
+             return.marginals.predictor = TRUE,
+             debug = FALSE)
+{
+    alldir = dir(results.dir)
+
+    ##FIRST: get the linear predictor
+    subdir=paste(results.dir, .Platform$file.sep,"predictor", sep="")
+
+    if (length(dir(subdir))>3L) {
+        if (debug)
+            cat(paste("collect linear predictor\n", sep=""))
+        
+        if (debug)
+            cat("...read summary.dat\n")
+        file=paste(subdir, .Platform$file.sep,"summary.dat", sep="")
+        dd = matrix(inla.read.binary.file(file=file), ncol=3L, byrow=TRUE)[,-1L, drop=FALSE]
+        col.nam = c("mean","sd")
+
+        ## info about size
+        size.info = inla.collect.size(subdir)
+        if (!is.null(size.info)) {
+            A = (size.info$nrep == 2)
+            n = size.info$n
+            nA = size.info$Ntotal - size.info$n
+        } else {
+            ## should not happen
+            stop("This should not happen")
+        }
+
+        ## get quantiles if computed
+        if (length(grep("^quantiles.dat$", dir(subdir)))==1L) {
+            if (debug)
+                cat("...read quantiles.dat\n")
+            file=paste(subdir, .Platform$file.sep,"quantiles.dat", sep="")
+            xx = inla.interpret.vector(inla.read.binary.file(file), debug=debug)
+            len = dim(xx)[2L]
+            qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+            col.nam = c(col.nam, paste(as.character(xx[, 1L]),"quant", sep=""))
+            dd = cbind(dd, t(qq))
+            rm(xx)
+        }
+        else {
+            if (debug)
+                cat("predictor: no quantiles.dat\n")
+        }
+
+        ## get cdf if computed
+        if (length(grep("^cdf.dat$", dir(subdir)))==1L) {
+            if (debug)
+                cat("...read cdf.dat\n")
+            file=paste(subdir, .Platform$file.sep,"cdf.dat", sep="")
+            xx = inla.interpret.vector(inla.read.binary.file(file), debug=debug)
+            len = dim(xx)[2L]
+            qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+            col.nam = c(col.nam, paste(as.character(xx[, 1L])," cdf", sep=""))
+            dd = cbind(dd, t(qq))
+            rm(xx)
+        }
+        else {
+            if (debug)
+                cat("... no cdf.dat\n")
+        }
+        
+        ## get kld
+        if (debug)
+            cat("...read kld\n")
+        kld =  matrix(inla.read.binary.file(file=paste(subdir, .Platform$file.sep,"symmetric-kld.dat", sep="")),
+                ncol=2L, byrow=TRUE)
+        dd = cbind(dd, kld[, 2L, drop=FALSE])
+        col.nam = c(col.nam, "kld")
+        colnames(dd) = inla.namefix(col.nam)
+        summary.linear.predictor = as.data.frame(dd)
+
+        if (A) {
+            rownames(summary.linear.predictor) = c(inla.namefix(paste("Apredictor.", inla.num(1L:nA), sep="")),
+                            inla.namefix(paste("predictor.", inla.num(1:n), sep="")))
+        } else {
+            rownames(summary.linear.predictor) = inla.namefix(paste("predictor.", inla.num(1L:size.info$Ntotal), sep=""))
+        }
+
+
+        
+        if (return.marginals.predictor) {
+            if (debug)
+                cat("...read marginal-densities.dat\n")
+            file=paste(subdir, .Platform$file.sep,"marginal-densities.dat", sep="")
+            xx = inla.read.binary.file(file)
+            rr = inla.interpret.vector.list(xx, debug=debug)
+            rm(xx)
+            if (!is.null(rr)) {
+                if (A) {
+                    names(rr) = c(inla.namefix(paste("Apredictor.", inla.num(1L:nA), sep="")),
+                                 inla.namefix(paste("predictor.", inla.num(1L:n), sep="")))
+                } else {
+                    names(rr) = inla.namefix(paste("predictor.", as.character(1L:length(rr)), sep=""))
+                }
+                names.rr = names(rr)
+                for(i in 1L:length(rr)) {
+                    colnames(rr[[i]]) = inla.namefix(c("x", "y"))
+
+                    if (inla.internal.experimental.mode) {
+                        class(rr[[i]]) = "inla.marginal"
+                        attr(rr[[i]], "inla.tag") = paste("marginal linear predictor", names.rr[i])
+                    }
+                }
+            }
+
+            if (inla.internal.experimental.mode) {
+                class(rr) = "inla.marginals"
+                attr(rr, "inla.tag") = "marginals linear predictor"
+            }
+            marginals.linear.predictor = rr
+        } else {
+            marginals.linear.predictor = NULL
+        }
+
+    } else {
+        summary.linear.predictor = NULL
+        marginals.linear.predictor = NULL
+        size.info = NULL
+    }
+
+    ##SECOND: get the inverse linear predictor(if computed)
+    if (length(grep("^predictor-user-scale$", alldir))==1L) {
+        subdir=paste(results.dir, .Platform$file.sep,"predictor-user-scale", sep="")
+        if (length(dir(subdir))>3L) {
+            if (debug)
+                cat(paste("collect fitted values\n", sep=""))
+            
+            file=paste(subdir, .Platform$file.sep,"summary.dat", sep="")
+            dd = matrix(inla.read.binary.file(file=file), ncol=3L, byrow=TRUE)[,-1L, drop=FALSE]
+            col.nam = c("mean","sd")
+
+            ## get quantiles if computed
+            if (length(grep("^quantiles.dat$", dir(subdir)))==1L) {
+                file=paste(subdir, .Platform$file.sep,"quantiles.dat", sep="")
+                xx = inla.interpret.vector(inla.read.binary.file(file), debug=debug)
+                len = dim(xx)[2L]
+                qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+                col.nam = c(col.nam, paste(as.character(xx[, 1L]),"quant", sep=""))
+                dd = cbind(dd, t(qq))
+                rm(xx)
+            }
+
+            ## get cdf if computed
+            if (length(grep("^cdf.dat$", dir(subdir)))==1L) {
+                file=paste(subdir, .Platform$file.sep,"cdf.dat", sep="")
+                xx = inla.interpret.vector(inla.read.binary.file(file), debug=debug)
+                len = dim(xx)[2L]
+                qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+                col.nam = c(col.nam, paste(as.character(xx[, 1L])," cdf", sep=""))
+                dd = cbind(dd, t(qq))
+                rm(xx)
+            }
+       
+            colnames(dd) = inla.namefix(col.nam)
+            summary.fitted.values = as.data.frame(dd)
+            if (return.marginals.predictor) {
+                file=paste(subdir, .Platform$file.sep,"marginal-densities.dat", sep="")
+                xx = inla.read.binary.file(file)
+                rr = inla.interpret.vector.list(xx, debug=debug)
+                rm(xx)
+                if (!is.null(rr)) {
+                    if (A) {
+                        names(rr) = c(inla.namefix(paste("Apredictor.", inla.num(1L:nA), sep="")),
+                                     inla.namefix(paste("predictor.", inla.num(1:n), sep="")))
+                    } else {
+                        names(rr) = inla.namefix(paste("predictor.", inla.num(1L:length(rr)), sep=""))
+                    }
+                    names.rr = names(rr)
+                    for(i in 1L:length(rr)) {
+                        colnames(rr[[i]]) = inla.namefix(c("x", "y"))
+                        if (inla.internal.experimental.mode) {
+                            class(rr[[i]]) = "inla.marginal"
+                            attr(rr[[i]], "inla.tag") = paste("marginal fitted values", names.rr[i])
+                        }
+                    }
+                }
+
+                if (inla.internal.experimental.mode) {
+                    class(rr) = "inla.marginals"
+                    attr(rr, "inla.tag") = "marginals fitted values"
+                }
+                marginals.fitted.values = rr
+            } else {
+                marginals.fitted.values = NULL
+            }
+        } else {
+            summary.fitted.values = NULL
+            marginals.fitted.values = NULL
+        }
+    } else {
+        summary.fitted.values = NULL
+        marginals.fitted.values = NULL
+    }
+
+
+    res = list(summary.linear.predictor=summary.linear.predictor,
+            marginals.linear.predictor=marginals.linear.predictor,
+            summary.fitted.values=summary.fitted.values,
+            marginals.fitted.values=marginals.fitted.values,
+            size.linear.predictor = size.info)
+
+    return(res)
+}
+
+`inla.collect.random` =
+    function(results.dir,
+             return.marginals.random,
+             debug = FALSE)
+{
+    alldir = dir(results.dir)
+    random = alldir[grep("^random.effect", alldir)]
+    n.random = length(random)
+    if (debug)
+        print("collect random effects")
+
+    ##read the names and model of the random effects
+    if (n.random > 0L) {
+        names.random = inla.namefix(character(n.random))
+        model.random = inla.trim(character(n.random))
+        for(i in 1L:n.random) {
+            tag = paste(results.dir, .Platform$file.sep, random[i], .Platform$file.sep,"TAG", sep="")
+            if (!file.exists(tag))
+                names.random[i] = "missing NAME"
+            else
+                names.random[i] = inla.namefix(readLines(tag, n=1L))
+            modelname = inla.trim(paste(results.dir, .Platform$file.sep, random[i], .Platform$file.sep,"MODEL", sep=""))
+            if (!file.exists(modelname))
+                model.random[i] = "NoModelName"
+            else
+                model.random[i] = inla.trim(readLines(modelname, n=1L))
+        }
+        
+
+        summary.random = list()
+        summary.random[[n.random]] = NA
+        size.random = list()
+        size.random[[n.random]] = NA
+
+        if (return.marginals.random) {
+            marginals.random = list()
+            marginals.random[[n.random]] = NA
+        } else {
+            marginals.random = NULL
+        }
+        
+        for(i in 1L:n.random) {
+            if (debug)
+                print(paste("read random ", i , " of ", n.random))
+            ##read the summary
+            file= paste(results.dir, .Platform$file.sep, random[i], sep="")
+            dir.random = dir(file)
+
+            if (length(dir.random) > 4L) {
+                dd = matrix(inla.read.binary.file(file=paste(file, .Platform$file.sep,"summary.dat", sep="")), ncol=3L, byrow=TRUE)
+                col.nam = c("ID","mean","sd")
+                ##read quantiles if existing
+                if (debug)
+                    cat("...quantiles.dat if any\n")
+                if (length(grep("^quantiles.dat$", dir.random))==1L) {
+                    xx = inla.interpret.vector(inla.read.binary.file(paste(file, .Platform$file.sep,"quantiles.dat", sep="")),
+                            debug=debug)
+                    len = dim(xx)[2L]
+                    qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+                    col.nam = c(col.nam, paste(as.character(xx[, 1L]),"quant", sep=""))
+                    dd = cbind(dd, t(qq))
+                }
+
+                ##read cdf if existing
+                if (debug)
+                    cat("...cdf.dat if any\n")
+                if (length(grep("^cdf.dat$", dir.random))==1L) {
+                    xx = inla.interpret.vector(inla.read.binary.file(paste(file, .Platform$file.sep,"cdf.dat", sep="")),
+                            debug=debug)
+                    len = dim(xx)[2L]
+                    qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+                    col.nam = c(col.nam, paste(as.character(xx[, 1L])," cdf", sep=""))
+                    dd = cbind(dd, t(qq))
+                }
+
+                ##read kld
+                if (debug)
+                    cat("...kld\n")
+                kld1 = matrix(inla.read.binary.file(file=paste(file, .Platform$file.sep,"symmetric-kld.dat", sep="")),
+                    ncol=2L, byrow=TRUE)
+                qq = kld1[, 2L, drop=FALSE]
+                dd = cbind(dd, qq)
+                if (debug)
+                    cat("...kld done\n")
+
+            
+                col.nam = c(col.nam, "kld")
+                colnames(dd) = inla.namefix(col.nam)
+                summary.random[[i]] = as.data.frame(dd)
+
+                if (return.marginals.random) {
+                    xx = inla.read.binary.file(paste(file, .Platform$file.sep,"marginal-densities.dat", sep=""))
+                    rr = inla.interpret.vector.list(xx, debug=debug)
+                    rm(xx)
+                    if (!is.null(rr)) {
+                        nd = length(rr)
+                        names(rr) = inla.namefix(paste("index.", as.character(1L:nd), sep=""))
+                        names.rr = names(rr)
+                        for(j in 1L:nd) {
+                            colnames(rr[[j]]) = inla.namefix(c("x", "y"))
+                            if (inla.internal.experimental.mode) {
+                                class(rr[[j]]) = "inla.marginal"
+                                attr(rr[[j]], "inla.tag") = paste("marginal random", names.random[i], names.rr[j])
+                            }
+                        }
+                    }
+
+                    if (inla.internal.experimental.mode) {
+                        class(rr) = "inla.marginals"
+                        attr(rr, "inla.tag") = paste("marginals random",  names.random[i])
+                    }
+                    marginals.random[[i]] = rr
+                } else {
+                    stopifnot(is.null(marginals.random))
+                }
+
+                ## if id.names are present,  override the default names
+                id.names = inla.readLines(paste(file, .Platform$file.sep,"id-names.dat", sep=""))
+                if (!is.null(id.names)) {
+                    len.id.names = length(id.names)
+                    summary.random[[i]]$ID[1L:len.id.names] = id.names
+                    names(marginals.random[[i]][1L:len.id.names]) = id.names
+                }
+                
+            } else {
+                N.file = paste(file, .Platform$file.sep,"N", sep="")
+                if (!file.exists(N.file)) {
+                    N = 0L
+                } else {
+                    N = scan(file=N.file, what = numeric(0L), quiet=TRUE)
+                }
+                summary.random[[i]] = data.frame("mean" = rep(NA, N), "sd" = rep(NA, N), "kld" = rep(NA, N))
+                marginals.random = NULL
+            }
+
+            size.random[[i]] = inla.collect.size(file)
+        }
+        names(summary.random) = inla.namefix(names.random)
+
+        ## could be that marginals.random is a list of lists of NULL or NA
+        if (!is.null(marginals.random)) {
+            if (all(sapply(marginals.random, function(x) (is.null(x) || is.na(x)))))
+                marginals.random = NULL
+        }
+
+        if (!is.null(marginals.random) && (length(marginals.random) > 0L)) {
+            names(marginals.random) = inla.namefix(names.random)
+        }
+    } else {
+        if (debug)
+            cat("No random effets\n")
+        model.random=NULL
+        summary.random=NULL
+        marginals.random=NULL
+        size.random = NULL
+    }
+    
+    res = list(model.random=model.random, summary.random=summary.random, marginals.random=marginals.random, size.random = size.random)
+    return(res)
+}
+
+`inla.collect.spde2.blc` =
+    function(results.dir,
+             return.marginals.random,
+             debug = FALSE)
+{
+    ## a copy from collect.random
+    alldir = dir(results.dir)
+    random = alldir[grep("^spde2.blc", alldir)]
+    n.random = length(random)
+    if (debug)
+        print("collect random effects")
+
+    ##read the names and model of the random effects
+    if (n.random > 0L) {
+        names.random = inla.namefix(character(n.random))
+        model.random = inla.trim(character(n.random))
+        for(i in 1L:n.random) {
+            tag = paste(results.dir, .Platform$file.sep, random[i], .Platform$file.sep,"TAG", sep="")
+            if (!file.exists(tag))
+                names.random[i] = "missing NAME"
+            else
+                names.random[i] = inla.namefix(readLines(tag, n=1L))
+            modelname = inla.trim(paste(results.dir, .Platform$file.sep, random[i], .Platform$file.sep,"MODEL", sep=""))
+            if (!file.exists(modelname))
+                model.random[i] = "NoModelName"
+            else
+                model.random[i] = inla.trim(readLines(modelname, n=1L))
+        }
+        
+
+        summary.random = list()
+        summary.random[[n.random]] = NA
+        size.random = list()
+        size.random[[n.random]] = NA
+
+        if (return.marginals.random) {
+            marginals.random = list()
+            marginals.random[[n.random]] = NA
+        } else {
+            marginals.random = NULL
+        }
+        
+        for(i in 1L:n.random) {
+            if (debug)
+                print(paste("read random ", i , " of ", n.random))
+            ##read the summary
+            file= paste(results.dir, .Platform$file.sep, random[i], sep="")
+            dir.random = dir(file)
+
+            if (length(dir.random) > 4L) {
+                dd = matrix(inla.read.binary.file(file=paste(file, .Platform$file.sep,"summary.dat", sep="")), ncol=3L, byrow=TRUE)
+                col.nam = c("ID","mean","sd")
+                ##read quantiles if existing
+                if (debug)
+                    cat("...quantiles.dat if any\n")
+                if (length(grep("^quantiles.dat$", dir.random))==1L) {
+                    xx = inla.interpret.vector(inla.read.binary.file(paste(file, .Platform$file.sep,"quantiles.dat", sep="")),
+                            debug=debug)
+                    len = dim(xx)[2L]
+                    qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+                    col.nam = c(col.nam, paste(as.character(xx[, 1L]),"quant", sep=""))
+                    dd = cbind(dd, t(qq))
+                }
+
+                ##read cdf if existing
+                if (debug)
+                    cat("...cdf.dat if any\n")
+                if (length(grep("^cdf.dat$", dir.random))==1L) {
+                    xx = inla.interpret.vector(inla.read.binary.file(paste(file, .Platform$file.sep,"cdf.dat", sep="")),
+                            debug=debug)
+                    len = dim(xx)[2L]
+                    qq = xx[, seq(2L, len, by=2L), drop=FALSE]
+                    col.nam = c(col.nam, paste(as.character(xx[, 1L])," cdf", sep=""))
+                    dd = cbind(dd, t(qq))
+                }
+
+                ##read kld
+                if (debug)
+                    cat("...kld\n")
+                kld1 = matrix(inla.read.binary.file(file=paste(file, .Platform$file.sep,"symmetric-kld.dat", sep="")),
+                    ncol=2L, byrow=TRUE)
+                qq = kld1[, 2L, drop=FALSE]
+                dd = cbind(dd, qq)
+                if (debug)
+                    cat("...kld done\n")
+
+            
+                col.nam = c(col.nam, "kld")
+                colnames(dd) = inla.namefix(col.nam)
+                summary.random[[i]] = as.data.frame(dd)
+
+                if (return.marginals.random) {
+                    xx = inla.read.binary.file(paste(file, .Platform$file.sep,"marginal-densities.dat", sep=""))
+                    rr = inla.interpret.vector.list(xx, debug=debug)
+                    rm(xx)
+                    if (!is.null(rr)) {
+                        nd = length(rr)
+                        names(rr) = inla.namefix(paste("index.", as.character(1L:nd), sep=""))
+                        names.rr = names(rr)
+                        for(j in 1L:nd) {
+                            colnames(rr[[j]]) = inla.namefix(c("x", "y"))
+                            if (inla.internal.experimental.mode) {
+                                class(rr[[j]]) = "inla.marginal"
+                                attr(rr[[j]], "inla.tag") = paste("marginal random", names.random[i], names.rr[j])
+                            }
+                        }
+                    }
+
+                    if (inla.internal.experimental.mode) {
+                        class(rr) = "inla.marginals"
+                        attr(rr, "inla.tag") = paste("marginals random",  names.random[i])
+                    }
+                    marginals.random[[i]] = rr
+                } else {
+                    stopifnot(is.null(marginals.random))
+                }
+            } else {
+                N.file = paste(file, .Platform$file.sep,"N", sep="")
+                if (!file.exists(N.file)) {
+                    N = 0L
+                } else {
+                    N = scan(file=N.file, what = numeric(0L), quiet=TRUE)
+                }
+                summary.random[[i]] = data.frame("mean" = rep(NA, N), "sd" = rep(NA, N), "kld" = rep(NA, N))
+                marginals.random = NULL
+            }
+
+            size.random[[i]] = inla.collect.size(file)
+        }
+        names(summary.random) = inla.namefix(names.random)
+
+        ## could be that marginals.random is a list of lists of NULL or NA
+        if (!is.null(marginals.random)) {
+            if (all(sapply(marginals.random, function(x) (is.null(x) || is.na(x)))))
+                marginals.random = NULL
+        }
+
+        if (!is.null(marginals.random) && (length(marginals.random) > 0L)) {
+            names(marginals.random) = inla.namefix(names.random)
+        }
+    } else {
+        if (debug)
+            cat("No random effets\n")
+        model.random=NULL
+        summary.random=NULL
+        marginals.random=NULL
+        size.random = NULL
+    }
+    
+    res = list(model.spde2.blc=model.random, summary.spde2.blc=summary.random, marginals.spde2.blc=marginals.random, size.spde2.blc = size.random)
+    return(res)
+}
+
+`inla.image.reduce` = function(im, image.dim=256)
+{
+    ## reduce image IM to image.dim IMAGE.DIM and return the image as a matrix.
+    ## order the indices so the output can be plotted by image()
+    
+    if ((class(im) != "pixmapGrey") || (im@size[1L] != im@size[2L])) {
+        return (im)
+    } else {
+        return (im@grey)
+    }
+
+    ## do not need this anymore as we do this in GMRFLib.
+    if (FALSE) {
+        if (image.dim >= im@size[1L]) {
+            n = as.integer(im@size[1L])
+            x  = matrix(NA, n, n)
+            for(j in 1L:n)
+                x[j, n-(1L:n)+1L] = im@grey[1L:n, j]
+            return (x)
+        }
+        block = ceiling(im@size[1L]/image.dim)
+        n = floor(im@size[1L]/block)
+        ii = jj = 0L
+        x = matrix(NA, n, n)
+        for(i in seq(1L, im@size[1L]-block+1L, by=block)) {
+            ii = ii + 1L
+            jj = 0L
+            for(j in seq(1L, im@size[1L]-block+1L, by=block)) {
+                jj = jj + 1L
+                x[jj, n-ii+1L] = min(im@grey[i:(i+block-1L), j:(j+block-1L)])
+            }
+        }
+        return (x)
+    }
+}
+
+`inla.collect.configurations` = function (results.dir, debug=FALSE) 
+{
+    d = paste(results.dir, "/si", sep="")
+    if (file.exists(d)) {
+        if (debug) {
+            print(paste("collect configurations for si from dir=", d))
+        }
+        for (f in list.files(d, pattern="^configuration.*[.]R$", full.names=TRUE)) {
+            if (debug) {
+                print(paste("...read", f))
+            }
+            source(f)
+        }
+        return (list(si = inla.si.configuration))
+    } else {
+        if (debug) {
+            print(paste("no si configurations to collect from dir=", d))
+        }
+        return (list(si = NULL))
+    }
+}
+
+`inla.collect.offset.linear.predictor` = function(results.dir, debug = FALSE)
+{
+    filename = paste(results.dir, "/totaloffset/totaloffset.dat", sep="")
+    stopifnot(file.exists(filename))
+
+    xx = inla.read.binary.file(filename)
+    return (list(total.offset = xx))
+}
