@@ -1,0 +1,22 @@
+## WARNING! DO NOT EDIT!
+## File automatically generated from debug.graph.R
+##
+\name{debug.graph}
+\alias{debug.graph}
+\alias{inla.debug.graph}
+\title{Debug a graph-file}
+\description{Debug a graph specification, by checking the specification along the way and signal an error if required."}
+\usage{inla.debug.graph(graph.file)}
+\arguments{
+    \item{graph.file}{The filename of the graph.}
+}
+\value{
+ If an error is found, then an error message is shows, otherwise the graph-object returned by
+ \code{inla.read.graph()} is returned.
+}
+\author{Havard Rue \email{hrue@math.ntnu.no}}
+\seealso{inla.read.graph}
+\examples{
+cat("2 1 1 2 2 1 1\n", file="g.dat")
+g = inla.debug.graph("g.dat")
+}
