@@ -1,0 +1,75 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{listings}
+\usepackage{verbatim}
+\begin{document}
+
+\section*{The Berkson Measurement Error (MEB) model}
+
+\subsection*{Parametrization}
+
+This is an implementation of the Berksom measurement error model for a
+fixed effect. The observed covariate is $w$ but it is $x$
+that goes into the linear predictor
+\begin{displaymath}
+    \eta = \ldots + \beta x + \ldots \ ,
+\end{displaymath}
+where $x = w + u$, $u$ is Gaussian with precision $\tau_u\times s$,
+ and $s$ is a vector of fixed scalings. 
+
+
+\subsection*{Hyperparameters}
+
+This model has 2 hyperparameters, $\theta = (\theta_{1}, \theta_{2})$.
+The hyperparameter specification is as follows:
+\begin{displaymath}
+    \theta_{1} = \beta
+\end{displaymath}
+and the prior is defined on $\theta_{1}$,
+\begin{displaymath}
+    \theta_{2} = \log(\tau_u)
+\end{displaymath}
+and the prior is defined on $\theta_{2}$.
+
+\subsection*{Specification}
+
+The MEB is specified inside the {\tt f()}
+function as
+\begin{verbatim}
+ f(w, [<weights>,] model="meb", hyper = <hyper>, scale = <s>)
+\end{verbatim}
+Here, \texttt{w} are the observed covariates, and the fixed scaling of
+the observational precision is given in argument \texttt{scale}. If
+the argument \texttt{scale} is not given, then $s$ is set to $1$.
+
+Note that only the unique values of \texttt{w} are used, so if two or
+more elements of \texttt{w} are \emph{identical}, then they refer to
+the \emph{same} element in the covariate $x$.
+
+
+\subsubsection*{Hyperparameter specification and default values}
+\input{../hyper/latent/meb.tex}
+
+\subsection*{Example}
+
+\verbatiminput{meb-example.R}
+
+\subsection*{Notes}
+
+\begin{itemize}
+\item \texttt{INLA} provide the posterior of $\nu=\beta x$ and
+    NOT $x$.  The results comes in the order given by the
+    sorted (from low to high) values of \texttt{x} and the field
+    \texttt{ID} gives the mapping.
+\end{itemize}
+
+
+\end{document}
+
+
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
+
