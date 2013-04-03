@@ -1,0 +1,58 @@
+\documentclass[a4paper,11pt]{report}
+\usepackage[scale={0.6,0.9},centering,includeheadfoot]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,upquote,Rd,Sweave}
+
+\newcommand{\bA}{\mbox{\protect \boldmath $A$}}
+\newcommand{\bB}{\mbox{\protect \boldmath $B$}}
+\newcommand{\bF}{\mbox{\protect \boldmath $F$}}
+\newcommand{\bD}{\mbox{\protect \boldmath $D$}}
+\newcommand{\bW}{\mbox{\protect \boldmath $W$}}
+\newcommand{\bC}{\mbox{\protect \boldmath $C$}}
+\newcommand{\bG}{\mbox{\protect \boldmath $G$}}
+\newcommand{\bK}{\mbox{\protect \boldmath $K$}}
+\newcommand{\bQ}{\mbox{\protect \boldmath $Q$}}
+\newcommand{\bM}{\mbox{\protect \boldmath $M$}}
+
+\newcommand{\bby}{\mbox{\protect \boldmath $y$}}
+\newcommand{\bbu}{\mbox{\protect \boldmath $u$}}
+\newcommand{\bbv}{\mbox{\protect \boldmath $v$}}
+\newcommand{\bbx}{\mbox{\protect \boldmath $x$}}
+
+\title{\textbf{The R-INLA tutorial: SPDE models}\\
+Warning: work in progress...\\
+Suggestions are welcome to \texttt{elias@r-inla.org}}
+\author{Elias T. Krainski}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  In this tutorial we presents how we fit models 
+  to spatial point refered data, the called 
+  geostatistical model, using INLA and SPDE. 
+  Before a fast introduction on such models, 
+  we start with a toy example to show details. 
+  In forward examples we presents some funcionalities 
+  to fit more complex models, such as  non-Gaussian,  
+  models with two likelihoods, ... 
+\end{abstract} 
+
+\tableofcontents
+
+%%% first section (need it on tutoriaḷ?)
+\input{spde-tutorial-introduction}
+\input{spde-tutorial-likelihoodintro}
+%%% next sections are one file each
+\input{spde-tutorial-toy}
+\input{spde-tutorial-rain}
+\input{spde-tutorial-semicontinuous}
+\input{spde-tutorial-jcovar}
+\input{spde-tutorial-nonstationar}
+
+\bibliographystyle{apalike}
+\bibliography{spde-tutorial}
+
+\end{document}
+
