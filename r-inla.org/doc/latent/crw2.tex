@@ -1,0 +1,72 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{listings}
+\begin{document}
+
+\section*{Continous random walk model of order $2$ (CRW2)}
+
+\subsection*{Parametrization}
+
+The continous random walk model of order $2$ (CRW2) for the Gaussian
+vector $\mathbf{x}=(x_1,\dots,x_n)$ is descibed in the GMRF-book
+chapter 3. It is an exact representation of the continous CRW2 model
+augmented with its derivaties. The use its the same as for RW2.
+
+\subsection*{Hyperparameters}
+
+The precision parameter $\tau$ is represented as
+\begin{displaymath}
+    \theta =\log \tau
+\end{displaymath}
+and the prior is defined on $\mathbf{\theta}$. Note that $\tau$ is the
+precision for the first order increments.
+
+\subsection*{Specification}
+
+The CRW2 model is specified inside the {\tt f()} function as
+\begin{verbatim}
+ f(<whatever>, model="crw2", values=<values>, hyper = <hyper>)
+\end{verbatim}
+The (optional) argument {\tt values } is a numeric or factor vector
+giving the values assumed by the covariate for which we want the
+effect to be estimated. See next example for an application.
+ 
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/latent/crw2.tex}
+
+
+\subsection*{Example}
+
+\begin{verbatim}
+n=100
+z=seq(0,6,length.out=n)
+y=sin(z)+rnorm(n,mean=0,sd=0.5)
+data=data.frame(y=y,z=z)
+
+formula=y~f(z,model="crw2")
+result=inla(formula,data=data,family="gaussian")
+\end{verbatim}
+
+
+\subsection*{Notes}
+
+
+\begin{itemize}
+\item The CRW2 is a intrinsic with rank deficiency 2.
+\item The CRW2 model for irregular locations are supported although not
+    described here.
+\item The $\frac{n-r}{2}\log(|R|^{*})$-part (with $r=2$) of the
+    normalisation constant is not computed, hence you need to add this
+    part to the log marginal likelihood estimate, if you need it.
+\item Usually, you may want to use the model RW2 instead.
+\end{itemize}
+
+\end{document}
+
+
+% LocalWords: 
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
