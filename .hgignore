@@ -1,0 +1,57 @@
+# use glob syntax.
+syntax: glob
+
+# Ignore all files of these types:
+*~
+*.o
+*.a
+## these are temporary files for pdflatex compile
+*_latexmk
+*.log
+*.aux
+*.dvi
+*.bbl
+*.blg
+*.fls
+
+# switch to regexp syntax.
+syntax: regexp
+# example from mercurial manual   ^\.pc/
+# Ignore these files:
+^.*/TAGS$
+^extlibs/metis-4.0.tgz$
+^extlibs/taucs-2.2.tgz$
+^extlibs/metis-build/
+^extlibs/taucs-build/
+^extlibs/.patch-metis$
+^extlibs/.patch-taucs$
+^fmesher/doc/
+^gmrflib/.deps/
+^gmrflib/RCSId\.all$
+^gmrflib/hgstamp$
+^gmrflib/examples/Makefile\.in$
+^gmrflib/tutorial/Makefile\.in$
+^gmrflib/doc/
+^gmrflib/example-doxygen-
+^inlaprog/inla$
+^rinla/man/control\..*$
+^.*make-man-pages\.timestamp$
+^sandbox/tutorials/inla/.*Rnw\.pdf$
+^sandbox/tutorials/inla/.*main\.pdf$
+^sandbox/tutorials/inla/.*main\.tex$
+^sandbox/tutorials/inla/.*\.fls$
+^sandbox/tutorials/inla/cacheSweave.*$
+^sandbox/tutorials/inla/Sweave/.*$
+^sandbox/tutorials/inla/auto/.*$
+^sandbox/tutorials/inla/.*\.RData$
+
+^tutorials/spde/.*Rnw\.pdf$
+^tutorials/spde/.*main\.pdf$
+^tutorials/spde/.*main\.tex$
+^tutorials/spde/.*\.fls$
+^tutorials/spde/cacheSweave.*$
+^tutorials/spde/runCacheSweave.*Rout$
+^tutorials/spde/Sweave/.*$
+^tutorials/spde/auto/.*$
+^tutorials/spde/.*\.RData$
+
