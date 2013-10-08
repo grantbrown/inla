@@ -1,0 +1,203 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{amsmath}
+\usepackage{verbatim}
+
+\begin{document}
+\section*{Zero-inflated models: Poisson, Binomial, negative Binomial
+    and BetaBinomial}
+
+\subsection*{Parametrisation}
+
+There is support two types of zero-inflated models, which we name type
+$0$ and type $1$. These are defined for both the Binomial, the
+Poisson, the negative Binomial and BetaBinomial likelihood. For
+simplicity we will describe only the Poisson as the other cases are
+similar.
+
+\subsubsection*{Type 0}
+
+The (type 0) likelihood is defined as
+\begin{displaymath}
+    \text{Prob}(y \mid \ldots ) = p \times 1_{[y=0]} +
+    (1-p)\times \text{Poisson}(y \mid y > 0)
+\end{displaymath}
+where $p$ is a hyperparameter where
+\begin{displaymath}
+    p = \frac{\exp(\theta)}{1+\exp(\theta)}
+\end{displaymath}
+and $\theta$ is the internal representation of $p$; meaning that the
+initial value and prior is given for $\theta$. This is model is called
+\texttt{zeroinflatedpoisson0} (and \texttt{zeroinflatedbinomial0}).
+
+\subsection*{Type 1}
+
+The (type 1) likelihood is defined as
+\begin{displaymath}
+    \text{Prob}(y \mid \ldots ) = p \times 1_{[y=0]} +
+    (1-p)\times \text{Poisson}(y)
+\end{displaymath}
+where $p$ is a hyperparameter where
+\begin{displaymath}
+    p = \frac{\exp(\theta)}{1+\exp(\theta)}
+\end{displaymath}
+and $\theta$ is the internal representation of $p$; meaning that the
+initial value and prior is given for $\theta$. This is model is called
+\texttt{zeroinflatedpoisson1} (and \texttt{zeroinflatedbinomial1}).
+
+\subsection*{Link-function}
+
+As for the Poisson, the Binomial the negative Binomial and the BetaBinomial.
+
+\subsection*{Hyperparameters}
+
+For Poisson and the Binomial, there is one hyperparameter; where
+\begin{displaymath}
+    p = \frac{\exp(\theta)}{1+\exp(\theta)}
+\end{displaymath}
+and the prior and initial value is is given for $\theta$.
+
+For the negative Binomial and BetaBinomial, there are two
+hyperparameters.  The overdispersion parameter $n$ for the negative
+Binomial is represented as
+\begin{displaymath}
+    \theta_{1} = \log(n)
+\end{displaymath}
+and the prior is defined on $\theta_{1}$. The zero-inflation parameter
+$p$, is represented as
+\begin{displaymath}
+    p = \frac{\exp(\theta_{2})}{1+\exp(\theta_{2})}
+\end{displaymath}
+and the prior and initial value is is given for $\theta_{2}$. For the
+BetaBinomial it is similar.
+
+\subsection*{Specification}
+
+\begin{itemize}
+\item $\text{family}=\texttt{zeroinflatedbinomial0}$
+\item $\text{family}=\texttt{zeroinflatedbinomial1}$
+\item $\text{family}=\texttt{zeroinflatednbinomial0}$
+\item $\text{family}=\texttt{zeroinflatednbinomial1}$
+\item $\text{family}=\texttt{zeroinflatedpoisson0}$
+\item $\text{family}=\texttt{zeroinflatedpoisson1}$
+\item $\text{family}=\texttt{zeroinflatedbetabinomial0}$
+\item $\text{family}=\texttt{zeroinflatedbetabinomial1}$
+\item Required arguments: As for the Binomial, the negative Binomial,
+    BetaBinomial and Poisson likelihood.
+\end{itemize}
+
+\subsubsection*{Hyperparameter spesification and default values}
+\paragraph{Zeroinflated Binomial Type 0}
+\input{../hyper/likelihood/zeroinflatedbinomial0.tex}
+
+\paragraph{Zeroinflated Binomial Type 1}
+\input{../hyper/likelihood/zeroinflatedbinomial1.tex}
+
+\paragraph{Zeroinflated NegBinomial Type 0}
+\input{../hyper/likelihood/zeroinflatednbinomial0.tex}
+
+\paragraph{Zeroinflated NegBinomial Type 1}
+\input{../hyper/likelihood/zeroinflatednbinomial1.tex}
+
+\paragraph{Zeroinflated BetaBinomial Type 0}
+\input{../hyper/likelihood/zeroinflatedbetabinomial0.tex}
+
+\paragraph{Zeroinflated BetaBinomial Type 1}
+\input{../hyper/likelihood/zeroinflatedbetabinomial1.tex}
+
+\paragraph{Zeroinflated Poisson Type 0}
+\input{../hyper/likelihood/zeroinflatedpoisson0.tex}
+
+\paragraph{Zeroinflated Poisson Type 1}
+\input{../hyper/likelihood/zeroinflatedpoisson1.tex}
+
+
+
+\subsection*{Example}
+
+In the following example we estimate the parameters in a simulated
+example for both type 0 and type 1.
+\subsubsection*{Poisson}
+
+\verbatiminput{example-zero-inflated-poisson.R}
+
+\subsubsection*{Binomial}
+
+\verbatiminput{example-zero-inflated-binomial.R}
+
+\clearpage
+
+\subsection*{Advanced example}
+
+In the following example we estimate the parameters in a simulated
+example for a type0 likelihood, where one linear predictor enters the
+zero-probability and one other linear predictor enters the non-zero
+Poisson for example. The same trick can be used for other models of
+type0.  The trick is that the likelihood
+\begin{displaymath}
+    p^{*} 1_{[y=0]} + (1-p^{*}) P(y | y > 0)
+\end{displaymath}
+can be reformulated as a Bernoulli likelihood for the
+``class''-variable
+\begin{displaymath}
+    z =
+    \begin{cases}
+        1, & \text{if\; }y=0\\
+        0, & \text{if\; }y > 0.
+    \end{cases}
+\end{displaymath}
+where $p^{*}$ is the probability for success, and zero-inflated type0
+likelihood (with fixed $p = 0$) for those $y > 0$. Since $p^{*}$ and
+the linear predictor in $P$ is separated into two likelihoods, we can
+apply one linear predictor to each one, hence extend the basic model
+to cases where $p^{*}$ also depends on a linear predictor.  Here is a
+small simulated example doing this.
+\verbatiminput{zeroinflated-example-type0.R}
+
+
+
+\subsection*{Notes}
+
+None.
+
+
+
+
+\subsection*{Extentions}
+
+There are some extentions available which currently is only
+implemented for the cases where its needed/requested.
+\begin{description}
+\item[Type 2] Is like Type 1 but where (for the Poisson)
+    \begin{displaymath}
+        p = 1-\left( \frac{E\exp(x)}{1 + E\exp(x)}\right)^{\alpha}
+    \end{displaymath}
+    where $\alpha > 0$ is the hyperparameter instead of $p$ (and
+    $E\exp(x)$ is the mean).  Available for Poisson as
+    \texttt{zeroinflatedpoisson2}, for binomial as
+    \texttt{zeroinflatedbinomial2} and for the negative binomial as
+    \texttt{zeroinflatednbinomial2}.
+
+    The internal representation is $\theta = \log(\alpha)$ and prior
+    is defined on $\log(\alpha)$.
+\end{description}
+
+\paragraph{Zeroinflated Poisson Type 2}
+\input{../hyper/likelihood/zeroinflatedpoisson2.tex}
+
+\paragraph{Zeroinflated Binomial Type 2}
+\input{../hyper/likelihood/zeroinflatedbinomial2.tex}
+
+\paragraph{Zeroinflated Negative Binomial Type 2}
+\input{../hyper/likelihood/zeroinflatednbinomial2.tex}
+
+\end{document}
+
+
+% LocalWords:  np Hyperparameters Ntrials gaussian hyperparameter
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
+% LocalWords:  zeroinflatedpoisson zeroinflatedbinomial
