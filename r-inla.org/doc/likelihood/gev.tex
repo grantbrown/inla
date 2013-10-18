@@ -1,0 +1,90 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{amsmath}
+\usepackage{verbatim}
+
+\begin{document}
+\section*{Generalised Extreme Value (GEV) distribution}
+
+\subsection*{Parametrisation}
+
+The GEV distribution is defined through the cummulative distribution
+function
+\begin{displaymath}
+    F(y; \eta, \tau, \xi) =
+    \exp\left(
+      - \left[ 1 + \xi \sqrt{\tau s} (y-\eta)\right]^{-1/\xi}
+    \right)
+\end{displaymath}
+for
+\begin{displaymath}
+    1 + \xi \sqrt{\tau s} (y-\eta) > 0
+\end{displaymath}
+and for a continuously response $y$ where
+\begin{description}
+\item[$\eta$:] is the linear predictor
+\item[$\tau$:] is the ``precision''
+\item[$s$:] is a fixed scaling, $s>0$.    
+\end{description}
+
+\subsection*{Link-function}
+
+The linear predictor is given in the parameterisation of the GEV
+distribution.
+
+\subsection*{Hyperparameters}
+
+The GEV-models has two hyperparameters.
+The ``precision'' is represented as
+\begin{displaymath}
+    \theta_{1} = \log \tau
+\end{displaymath}
+and the prior is defined on $\theta_{1}$.  The shape parameter $\xi$
+is represented as
+\begin{displaymath}
+    \theta_{2} = \xi 
+\end{displaymath}
+and the prior is defined on $\theta_{2}$.  \footnote{Internally, the
+    parameter $\theta_{2}$ is scaled with a fixed scaling $\xi_{s}$
+    (default $0.01$), to improve the numerics as the natural ``scale''
+    of $\xi$ is small. For this reason the $\theta_{2} (=\xi)$
+    reported in \texttt{result\$mode\$theta} will appear as
+    $\theta_{2}/\xi_{s}$. For the same reason, if you define the mode
+    using \texttt{control.mode = list(theta = ..., ...)} then the
+    element representing $\theta_{2}$ should be given as $\theta_{2} /
+    \xi_{s}$.}
+
+\subsection*{Specification}
+
+\begin{itemize}
+\item $\text{family}=\texttt{gev}$
+\item Required arguments: $y$ and $s$ (keyword \texttt{scale})
+\item The scaling $\xi_{s}$ is given by the argument
+    \texttt{gev.scale.xi} and is default set to $0.01$.
+\end{itemize}
+The weights has default value 1.
+
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/likelihood/gev.tex}
+
+\subsection*{Example}
+
+In the following example, we estimate the parameters of the GEV
+distribution on some simulated data.
+%%
+\verbatiminput{example-gev.R}
+
+\subsection*{Notes}
+
+None.
+
+
+\end{document}
+
+
+% LocalWords:  np Hyperparameters Ntrials gaussian
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 

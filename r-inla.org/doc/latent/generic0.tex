@@ -1,0 +1,119 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{listings}
+\begin{document}
+
+\section*{Generic0 model}
+
+\subsection*{Parametrization}
+
+The Type 0 generic model implements the following precision matrix
+\begin{displaymath}
+    \mathbf{Q}=\tau\mathbf{C}
+\end{displaymath}
+where $\mathbf{C}$ is the structure matrix.
+
+\subsection*{Hyperparameters}
+
+The precision parameters of the generic0 model is represented as
+\begin{displaymath}
+    \theta = \log(\tau)
+\end{displaymath}
+and prior is assigned to $\theta$
+
+\subsection*{Specification}
+
+The generic0 models is specified inside the {\tt f()} function as
+\begin{verbatim}
+ f(<whatever>,model="generic0",Cmatrix = <Cmat>, hyper = <hyper>)
+\end{verbatim}
+
+
+where {\tt <Cmat>} can be given in two different ways:
+\begin{itemize}
+\item a dense matrix or a sparse-matrix defined be
+    \texttt{Matrix::sparseMatrix()}.
+\item the name of a file giving the structure matrix. The file should
+    have the following format
+    \[
+    i\quad j\quad \mathbf{C}_{ij}
+    \]
+    where $i$ and $j$ are the row and column index and
+    $\mathbf{C}_{ij}$ is the corresponding element of the precision
+    matrix. Only the non-zero elements of the precision matrix need to
+    be stored in the file.  
+\end{itemize}
+See the following example for an application
+
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/latent/generic0.tex}
+
+
+
+\subsection*{Example}
+In the example below we define a RW1 model first using the {\tt
+    generic0} model and this using the {\tt rw1} model.
+\begin{verbatim}
+## Simulate data
+n=100
+z=1:n
+y=sin(z/n*2*pi)+rnorm(n,mean=0,sd=0.5)
+data=data.frame(y=y,z=z)
+
+Q = toeplitz(c(2,-1, rep(0,n-3),-1))
+Q[1,1] = Q[n,n] = 1
+Q[n,1] = Q[1,n] = 0
+
+## Q as dense
+formula1 = y ~ f(z, model="generic0", Cmatrix = Q,
+                 rankdef=1, constr=TRUE, diagonal=1e-05)
+result1 = inla(formula1, data=data, family="gaussian")
+
+## Q as sparse
+Q.sparse = as(Q, "dgTMatrix")
+formula2 = y ~ f(z, model="generic0", Cmatrix = Q.sparse,
+                 rankdef=1, constr=TRUE, diagonal=1e-05)
+result2 = inla(formula2, data=data, family="gaussian")
+
+## This is the same model defined using the rw1 model
+formula3 = y ~ f(z,model="rw1")
+result3 = inla(formula3, data=data, family="gaussian")
+\end{verbatim}
+
+\subsection*{Notes}
+
+INLA uses for this model the following normalizing constant
+\begin{displaymath}
+    \tau^{n/2}\; \left(\frac{1}{2\pi}\right)^{n/2}
+\end{displaymath}
+where $n$ is the dimension of the $C$ matrix, and NOT the correct one
+\begin{displaymath}
+    \tau^{n/2}\; \left(\frac{1}{2\pi}\right)^{n/2}\; \mid C\mid^{1/2}.
+\end{displaymath}
+Different algorithms are required to compute the determinant depending
+on the structure and size of $C$ (and it might be singular), and
+therefore this constant is not computed. However, for near-all use of
+this \texttt{generic0} model, this constant is not of interest.
+
+The missing constant \emph{only matters} for the marginal likelihood
+value.  Say you are comparing two runs with two models, one where this
+generic-component is present, and one where this generic-component is
+not present. Since the marginal likelihood does depend on the
+normalising constant not only the on the ``shape'', then a comparison
+between the two models will be wrong using the reported
+\verb|result$mlik|-values from INLA. You have to add to one of them
+\begin{displaymath}
+    1/2 \log(|C|)
+\end{displaymath}
+to account for this missing constant.
+
+
+\end{document}
+
+
+% LocalWords: 
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
