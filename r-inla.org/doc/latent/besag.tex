@@ -1,0 +1,77 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{listings}
+\begin{document}
+
+\section*{Besag model for spatial effects}
+
+\subsection*{Parametrization}
+
+The besag model for random vector $\mathbf{x}=(x_1,\dots,x_n)$ is defined as
+\begin{equation}\label{eq.besag}
+    x_i|x_j,i\neq j,\tau\sim\mathcal{N}(\frac{1}{n_i}\sum_{i\sim j}x_j,\frac{1}{n_i\tau})
+\end{equation}
+
+where $n_i$ is the number of neighbours of node $i$, $i\sim j$
+indicates that the two nodes $i$ and $j$ are neighbours.  
+
+
+\subsection*{Hyperparameters}
+
+The precision parameter $\tau$ is represented as
+\begin{displaymath}
+    \theta_{1} =\log \tau
+\end{displaymath}
+and the prior is defined on $\theta_{1}$. 
+
+\subsection*{Specification}
+
+The besag model is specified inside the {\tt f()} function as
+\begin{verbatim}
+ f(<whatever>,model="besag",graph=<graph>,
+   hyper=<hyper>, adjust.for.con.comp = TRUE,
+   scale.model = FALSE)
+\end{verbatim}
+
+The neighbourhood structure of $\mathbf{x}$ is passed to the program
+through the {\tt graph} argument.
+
+If the option \verb|adjust.for.con.comp=TRUE| then the model is
+adjusted if the graph has more than one connected compoment. This
+adjustment can be disabled setting this option to \texttt{FALSE}. If
+\verb|adjust.for.con.comp=TRUE| then \texttt{constr=TRUE} is
+interpreted as a sum-to-zero constraint on \emph{each} connected
+component in the graph and the \texttt{rankdef} parameter is set to
+the number of connected components.
+
+The logical option \verb|scale.model| determine if the model should be
+scaled to have an average variance (the diagonal of the generalized
+inverse) equal to 1. This makes prior spesification much
+easier. Default is \verb|FALSE| so that the model is not scaled.
+
+
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/latent/besag.tex}
+
+\subsection*{Example}
+
+For examples of application of this model see the {\tt Bym}, {\tt Munich}, {\tt Zambia} or {\tt Scotland} examples in Volume I.
+
+\subsection*{Notes}
+
+The besag model intrinsic with rankdef 1.
+
+The term $\frac{1}{2}\log(|R|^{*})$ of the normalisation constant is
+not computed, hence you need to add this part to the log marginal
+likelihood estimate, if you need it. Here $R$ is the precision matrix
+with a unit precision parameter.
+
+\end{document}
+
+
+% LocalWords: 
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 

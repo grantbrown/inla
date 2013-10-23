@@ -1,0 +1,84 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{amsmath}
+\usepackage{listings}
+\begin{document}
+
+\section*{Bym model for spatial effects}
+
+\subsection*{Parametrization}
+
+This model is simply a union of the  \lstinline$besag$ model $u$ and a
+\lstinline$iid$ model $v$, so that
+\begin{displaymath}
+    x =
+    \begin{pmatrix}
+        v + u\\
+        u
+    \end{pmatrix}
+\end{displaymath}
+Note that the length of $x$ is $2n$ if the length of $u$ (and $v$) is
+$n$. The benefite is that this allows to get the posterior marginals
+of the sum of the spatial and iid model; otherwise it offers no
+advantages.
+
+\subsection*{Hyperparameters}
+The hyperparameters are the precision $\tau_1$ of the \lstinline$iid$
+model ($v$) and the precision $\tau_2$ of the \lstinline$besag$ model
+($u$).  The precision parameters are represented as
+\begin{displaymath}
+    \theta=(\theta_1,\theta_2) =(\log \tau_1,\log \tau_2)
+\end{displaymath}
+and the prior is defined on $\mathbf{\theta}$.
+
+\subsection*{Specification}
+
+The bym model is specified inside the {\tt f()} function as
+\begin{verbatim}
+ f(<whatever>,model="bym",graph=<graph>,
+   hyper=<hyper>, adjust.for.con.comp = TRUE,
+   scale.model = FALSE)
+\end{verbatim}
+
+The neighbourhood structure of $\mathbf{x}$ is passed to the program
+through the {\tt graph} argument.
+
+The option \verb|adjust.for.con.comp| adjust the model if the graph
+has more than one connected compoment, and this adjustment can be
+disabled setting this option to \texttt{FALSE}. This means that
+\texttt{constr=TRUE} is interpreted as a sum-to-zero constraint on
+\emph{each} connected component and the \texttt{rankdef} parameter is
+set accordingly. 
+
+The logical option \verb|scale.model| determine if the
+besag-model-part of the model $u$ should be scaled to have an average
+variance (the diagonal of the generalized inverse) equal to 1. This
+makes prior spesification much easier. Default is \verb|FALSE| so that
+the model is not scaled.
+
+
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/latent/bym.tex}
+
+
+\subsection*{Example}
+
+For examples of application of this model see the {\tt Bym} example in
+Volume I.
+
+\subsection*{Notes}
+
+The term $\frac{1}{2}\log(|R|^{*})$ of the normalisation constant is
+not computed, hence you need to add this part to the log marginal
+likelihood estimate, if you need it. Here $R$ is the precision matrix
+with a unit precision parameter for the Besag part of the model.
+
+\end{document}
+
+
+% LocalWords: 
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 

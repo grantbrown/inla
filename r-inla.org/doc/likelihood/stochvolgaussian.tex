@@ -1,0 +1,88 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{listings}
+\begin{document}
+
+\section*{Gaussian model for Stochastic volatility}
+
+\subsection*{Parametrization}
+
+The Gaussian likelihood for stochastic volatility models is defined
+as:
+\[
+y |\ldots =\sigma \epsilon
+\]
+where
+\[
+\epsilon \sim\mathcal{N}(0,1)
+\]
+
+\subsection*{Link-function}
+
+The squared of the scale parameter $\sigma$ is linked to the linear predictor
+$\eta$ as:
+\[
+\sigma^{2} =\exp(\eta) + 1/\tau
+\]
+where $1/\tau$ is an possible offset in the variance.
+
+\subsection*{Hyperparameters}
+
+This likelihood has one hyperparmeter
+\begin{displaymath}
+    \theta = \log(\tau)
+\end{displaymath}
+and the prior is defined on $\theta$.
+
+See \texttt{Notes} for more info about the possible offset in the
+variance, as default $1/\tau=0$ and fixed.
+
+\subsection*{Specification}
+
+\begin{itemize}
+\item $\text{family}=\texttt{stochvol}$
+\item Required argument: $y$.
+\end{itemize}
+
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/likelihood/stochvol.tex}
+
+\subsection*{Example}
+In the following example we specify the likelihood for the stochastic
+volatility model to be Gaussian
+ 
+\begin{verbatim}
+#simulated data
+n=500
+phi=0.53
+eta=rep(0.1,n)
+for(i in 2:n)
+  eta[i]=0.1+phi*(eta[i-1]-0.1)+rnorm(1,0,0.6)
+y=exp(eta/2)*rnorm(n)
+time=1:n
+data=list(ret=y,time=time)
+
+#fit the model
+formula=ret~f(time,model="ar1",
+              hyper = list(prec = list(param=c(1,0.001))))
+result=inla(formula,family="stochvol",data=data)
+
+\end{verbatim}
+
+\subsection*{Notes}
+
+The default setting treat $\theta$ as fixed and with an initial value
+so that $1/\tau=0$.  If $\theta$ is random, then you \emph{must} also
+give it a reasonable initial value.
+
+
+
+\end{document}
+
+
+% LocalWords: 
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
