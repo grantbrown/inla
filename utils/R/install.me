@@ -1,0 +1,176 @@
+#!/bin/bash
+set -u
+
+epoch=$(date +%s)
+VERSION=0.0-$epoch
+
+rm INLA*tar.gz INLA*tgz INLA*zip
+
+bdate=$(date -d @$epoch +%Y%m%d%H%M)
+date=$(date -d @$epoch)
+D=inla/rinla/R
+
+hg=$(cd $D >/dev/null 2>/dev/null; hg parents --template 'hgid: {node|short}  date: {date|date}')
+##inlahg=$(extern/inla64.linux -V 2>&1 | grep hgid:|head -n1)
+inlahg=$hg
+
+echo "epoch=$epoch"
+echo "date=$date"
+echo "bdate=$bdate"
+echo "inlahg=$inlahg"
+echo "hg=$hg"
+
+## update these lines in the function with the updated hgid's and build-date
+tt=.tt
+test -f $tt && rm -rf $tt
+
+## We need to remove these as we change them
+for f in INLA/NAMESPACE INLA/DESCRIPTION; do
+    test -f $f && rm -f $f
+done
+
+rsync -auvL --delete --exclude '/*~' --exclude RCS/ --exclude TAGS $D/.. INLA/. 
+
+## generate the exports defined in the R-files
+{
+    echo ""
+    echo "# The functions to be exported are defined in the R-code with"
+    echo "# lines as:"
+    echo "# ## Export: func1"
+    echo "# ## Export: func1 func2"
+    echo "# etc..."
+
+    find INLA/R -name \*.R | while read f; do
+        egrep "^## *Export *:" $f | while read ff; do
+            echo "$ff" | awk -F: '{print $2}' | awk '{for(i=1;i<=NF;i++) print $i}' | \
+                awk '{nf = split($0, a, /!/)
+                      if (nf == 2) print "S3method(" a[1] ", "  a[2] ")"
+                      if (nf == 1) print "export(" a[1] ")" }'
+        done
+    done
+} >> INLA/NAMESPACE || exit 1
+
+cat $D/version.R | \
+    awk '/^[ \t]*rinla[.]hgid *=/{ print "    rinla.hgid = ", "inla.trim(\"" hg      "\")"; next;}
+         /^[ \t]*inla[.]hgid *=/{  print "    inla.hgid  = ", "inla.trim(\"" inlahg "\")"; next;}
+         /^[ \t]*date *=/{       print "    date       = ", "inla.trim(\"" date    "\")"; next;}
+         /^[ \t]*bdate *=/{      print "    bdate      = ", "inla.trim(\"" bdate   "\")"; next;}
+         /^[ \t]*version *=/{      print "    version      = ", "inla.trim(\"" version   "\")"; next;}
+	 {print}' hg="$hg" inlahg="$inlahg" bdate="$bdate" date="$date" version="$VERSION" > $tt
+mv -f $tt $D/version.R
+
+( cd $D; ./make-man-pages; )
+
+test -d INLA || mkdir INLA
+
+## Modify the DESCRIPTION file
+desc="INLA/DESCRIPTION"
+{
+    egrep -v '^(Version:|Date:)' inla/rinla/DESCRIPTION
+    echo "Version: $VERSION"
+    echo "Date: $(date '+%Y-%m-%d') ($hg)"
+} > $tt && mv -f $tt $desc
+ 
+~hrue/bin/fix-permissions INLA
+
+mf="INLA.pdf"
+test -f $mf && rm -f $mf
+R --vanilla CMD Rd2pdf --no-preview --batch INLA >/dev/null 2>&1 || exit 1
+md="INLA/inst/doc/manual"
+test -d $md || mkdir $md
+cp $mf $md/$mf
+
+SRC=INLA-source.tgz
+tar cvfzh INLA-source.tgz INLA
+
+R --vanilla CMD build --resave-data INLA || exit 1
+
+INLA=$(echo INLA_*.tar.gz)
+tgzINLA=${INLA%%.tar.gz}.tgz
+mv $INLA $tgzINLA 
+
+zipINLA=${tgzINLA%%.tgz}.zip
+
+DD=$(echo ~/R/x86_64-redhat-linux-gnu-library/default)
+test -d $DD || mkdir -p $DD
+export R_ENABLE_JIT=3
+export R_COMPILE_PKGS=1
+R --vanilla CMD INSTALL --library=$DD $tgzINLA || exit 1
+
+~/bin/fix-permissions $DD
+
+( cd $DD; zip -v -r $zipINLA INLA; )
+
+mv -f $DD/$zipINLA .
+
+ls -l INLA*gz INLA*zip
+www=../www/binaries
+OldDir=$(echo ~hrue/www/www.inla/binaries/testing/Old)
+old="$tgzINLA-$bdate"
+
+if [ $# -ge 1 -a "$1" == "1" ]; then
+    cp -v $tgzINLA $www/INLA.tgz
+    cp -v $zipINLA $www/INLA.zip
+    cp -v $SRC     $www/INLA-source.tgz
+    cp -v $tgzINLA $OldDir/$old
+    cp -v $tgzINLA $www/testing/INLA.tgz
+    cp -v $zipINLA $www/testing/INLA.zip
+    cp -v $SRC     $www/testing/INLA-source.tgz
+    
+    echo $bdate >  $www/build.date
+    echo $bdate >  $www/testing/build.date
+fi
+
+if [ $# -ge 1 -a "$1" == "2" ]; then
+    cp -v $tgzINLA $OldDir/$old
+    cp -v $tgzINLA $www/testing/INLA.tgz
+    cp -v $zipINLA $www/testing/INLA.zip
+    cp -v $SRC     $www/testing/INLA-source.tgz
+    echo $bdate >  $www/testing/build.date
+fi
+
+{
+    cat $D/upgrade.R | sed 's/inla.upgrade/inla.installer/g' | grep -v ^#
+    cat $D/os.R | grep -v ^#
+    echo ' '
+    echo '`givemeINLA` = function(...) inla.installer(...)'
+    echo 'if (!exists("inla.lib")) inla.lib = NULL'
+    echo 'givemeINLA(testing=FALSE, lib = inla.lib)'
+    echo 'cat("\n\n\nYou can later upgrade INLA using: inla.upgrade()\n")'
+} | sed 's/inla.os/inla.installer.os/g' >  $www/../givemeINLA.R
+{
+    cat $D/upgrade.R | sed 's/inla.upgrade/inla.installer/g' | grep -v ^#
+    cat $D/os.R | grep -v ^#
+    echo ' '
+    echo '`givemeINLA` = function(...) inla.installer(...)'
+    echo 'if (!exists("inla.lib")) inla.lib = NULL'
+    echo 'givemeINLA(testing=TRUE, lib = inla.lib)'
+    echo 'cat("\n\n\nYou can later upgrade INLA using: inla.upgrade(testing=TRUE)\n")'
+} | sed 's/inla.os/inla.installer.os/g' >  $www/../givemeINLA-testing.R
+    
+( 
+    cd $www; 
+    test -f SHA1SUM && rm -f SHA1SUM; 
+    {
+	for f in *; do
+	    if [ -f "$f" ]; then
+		sha1sum "$f"
+	    fi
+	done
+    } > SHA1SUM
+)
+
+( 
+    cd $www/testing; 
+    test -f SHA1SUM && rm -f SHA1SUM; 
+    {
+	for f in *; do
+	    if [ -f "$f" ]; then
+		sha1sum "$f"
+	    fi
+	done
+    } > SHA1SUM
+)
+
+rm -f $tgzINLA 
+rm -f $zipINLA 
