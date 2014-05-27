@@ -1,0 +1,68 @@
+\documentclass[a4paper,11pt]{report}
+\usepackage[scale={0.6,0.9},centering,includeheadfoot]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage{amsmath,upquote,Rd,Sweave}
+
+\newcommand{\bA}{\mbox{\protect \boldmath $A$}}
+\newcommand{\bB}{\mbox{\protect \boldmath $B$}}
+\newcommand{\bF}{\mbox{\protect \boldmath $F$}}
+\newcommand{\bD}{\mbox{\protect \boldmath $D$}}
+\newcommand{\bW}{\mbox{\protect \boldmath $W$}}
+\newcommand{\bC}{\mbox{\protect \boldmath $C$}}
+\newcommand{\bG}{\mbox{\protect \boldmath $G$}}
+\newcommand{\bK}{\mbox{\protect \boldmath $K$}}
+\newcommand{\bQ}{\mbox{\protect \boldmath $Q$}}
+\newcommand{\bM}{\mbox{\protect \boldmath $M$}}
+\newcommand{\bU}{\mbox{\protect \boldmath $U$}}
+\newcommand{\bV}{\mbox{\protect \boldmath $V$}}
+
+\newcommand{\bby}{\mbox{\protect \boldmath $y$}}
+\newcommand{\bbu}{\mbox{\protect \boldmath $u$}}
+\newcommand{\bbv}{\mbox{\protect \boldmath $v$}}
+\newcommand{\bbx}{\mbox{\protect \boldmath $x$}}
+
+\title{\textbf{The R-INLA tutorial: SPDE models}\\
+Warning: work in progress...\\
+Suggestions are welcome to \texttt{elias@r-inla.org}}
+\author{Elias T. Krainski and Finn Lindgren}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+  In this tutorial we presents how we fit models 
+  to spatial point refered data, the called 
+  geostatistical model, using INLA and SPDE. 
+  Before a fast introduction on such models, 
+  we start with the mesh building 
+  (necessary to fit the models) and show the application 
+  on a toy example with details. 
+  In forward examples we presents some funcionalities 
+  to fit more complex models, such as  non-Gaussian,  
+  models with two likelihoods, such as a semi-continuous,  
+  missaligned and preferential sampling, where we model 
+  jointly the point pattern process. Also, we introduce 
+  the non-stationary SPDE models, space-time model, data-cloning.
+\end{abstract} 
+
+\input{updates} 
+
+\tableofcontents
+
+\input{spde-tutorial-likelihoodintro} 
+\input{spde-tutorial-spde-introduction}
+\input{spde-tutorial-toy} 
+\input{spde-tutorial-rain} 
+\input{spde-tutorial-semicontinuous} 
+\input{spde-tutorial-jcovar} 
+\input{spde-tutorial-nonstationar} 
+\input{spde-tutorial-prefsampl} 
+\input{spde-tutorial-spacetime} 
+\input{spde-tutorial-datacloning} 
+
+\bibliographystyle{apalike}
+\bibliography{spde-tutorial}
+
+\end{document}
+
