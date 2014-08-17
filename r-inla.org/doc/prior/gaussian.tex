@@ -1,0 +1,55 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{verbatim}
+\begin{document}
+
+\section*{Gaussian prior}
+
+\subsection*{Parametrisation}
+The normal/Gaussian distribution has density
+\begin{equation}
+    \pi(\theta)=\left(\frac{\tau}{2\pi}\right)^{1/2}
+    \exp\left(-\frac{\tau}{2}(\theta-\mu)^2\right)
+\end{equation}
+for continuous $\theta$ where
+\begin{description}
+\item[$\mu$:] is the mean
+\item[$\tau$:] is precision.
+\end{description}
+
+\subsection*{Specification}
+The Gaussian prior for the hyperparameters is specified inside the
+\texttt{f()} function as following using the old style
+\begin{center}
+    \texttt{f( <whatever> , prior="normal", param=c(<mean>, <precision>) )}
+\end{center}
+\begin{center}
+    \texttt{f( <whatever> , prior="gaussian", param=c(<mean>, <precision>) )}
+\end{center}
+or better, using the new style
+\begin{center}
+    \texttt{f( <whatever> , hyper = list(<theta> = list(prior="gaussian", param=c(<mean>, <precision>))))}
+\end{center}
+Similar if there are more than one hyperparameter for that particular
+\texttt{f}-model. In the case where we want to specify the prior for
+the hyperparameter of an observation model, for example the negative
+Binomial, the the prior spesification will appear inside the
+\texttt{control.family()}-argument; see the following example for
+illustration.
+
+\subsection*{Example}
+\verbatiminput{example-gaussian.R}
+
+\subsection*{Notes}
+
+None.
+
+\end{document}
+
+
+% LocalWords:  hyperparameters param gaussian hyperparameter
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
