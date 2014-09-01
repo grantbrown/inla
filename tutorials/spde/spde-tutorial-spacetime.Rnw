@@ -1,0 +1,371 @@
+\chapter{A space time example}
+
+\SweaveOpts{prefix.string=figs/spacetime} 
+<<sett,echo=F,results=hide>>=
+options(width=75, prompt = " ", continue = "   ")
+require(lattice) 
+require(INLA)
+lcall <- inla.getOption('inla.call')
+inla.setOption(inla.call=lcall)
+source('spde-tutorial-functions.R')
+load('prmesh1.RData')
+@ 
+
+In this chapter we show an example on fitting 
+a spatio-temporal model. This model is a separable 
+one described on \cite{cameletti:2012}. 
+Basically the model is defined as a SPDE 
+model for the spatial domain and another 
+one for the temporal domain. 
+The spatio-temporal separable model is defined 
+by the kronecker product between the precision 
+of these two models. 
+
+In this example we show that it is allowed 
+to have different locations on different times. 
+Also, we show the use of a categorical covariate. 
+
+\section{Data simulation} 
+
+We use the Paran\'a state border, available on 
+\pkg{INLA} package, as the domain. 
+<<data>>=
+data(PRborder)
+@ 
+We start by defining the spatial model. 
+Because we need that the example run faster, 
+we use the low resolution mesh for 
+Paran\'a state border created on the 
+section~\ref{ch:mesh}.
+
+There is two options to simulate from 
+Cameletti's model. One is based on the 
+marginal distribution of the latent field 
+and another is on the conditional 
+distribution at each time. 
+The second one is easy for us by 
+use the function defined on the 
+section~\ref{sec:simula} to simulate an 
+independent random field realization each time. 
+
+First we define a set of points as the same on the 
+\code{PRprec} data 
+<<prprec>>=
+data(PRprec)
+coords <- as.matrix(PRprec[,1:2])
+@ 
+and set $k=12$, the time dimention 
+<<k>>=
+k <- 12
+@ 
+
+The $k$ independent realizations can be done by 
+<<rk>>=
+params <- c(variance=1, kappa=1/2) 
+set.seed(1)
+x.k <- rspde(coords, kappa=1/2, n=k, mesh=prmesh1)
+dim(x.k)
+@ 
+
+Now, we define the autoregressive parameter $\rho$ 
+<<beta>>=
+rho <- 0.7
+@ 
+and get the sample 
+<<x>>=
+x <- x.k
+for (j in 2:k) 
+    x[,j] <- rho*x[,j-1] + x.k[,j]
+@ 
+
+We can visualize the realization 
+at the figure~\ref{fig:timevisual} 
+with commands bellow 
+<<timevisual>>=
+c100 <- rainbow(101)
+par(mfrow=c(4,3), mar=c(0,0,0,0))
+for (j in 1:k)
+  plot(coords, col=c100[round(100*(x[,j]-min(x[,j]))/diff(range(x[,j])))], 
+       axes=FALSE, asp=1, pch=19, cex=0.5)
+@ 
+\setkeys{Gin}{width=0.99\textwidth}
+\begin{figure}\centering
+<<ftimevisual,echo=F,fig=TRUE,eps=FALSE,width=7.5,height=7>>=
+<<timevisual>>
+@ 
+\caption{Realization of the spatio temporal random field.} 
+\label{fig:timevisual}
+\end{figure}
+
+In this example we need to show the use 
+of a categorical covariate. 
+First we do the simulation of the covariate as 
+<<categcov>>=
+n <- nrow(coords)
+set.seed(2)
+table(ccov <- factor(sample(LETTERS[1:3], n*k, replace=TRUE)) )
+@ 
+and the regression parameters as 
+<<betacov>>=
+beta <- -1:1
+@ 
+
+The response is 
+<<respst>>=
+y <- beta[unclass(ccov)] + x
+tapply(y, ccov, mean)
+@ 
+
+To show that is allowed to have different 
+locations on different times, we drop some 
+of the observations. We do it by just 
+selecting a half of the simulated data. 
+We do it by creating a index for the 
+selected observations
+<<seldat>>=
+isel <- sample(1:(n*k), n*k/2) 
+@ 
+and we organize the data on a \code{data.frame} 
+<<dat>>=
+dat <- data.frame(y=as.vector(y), w=ccov, 
+                  time=rep(1:k, each=n), 
+                  xcoo=rep(coords[,1], k), 
+                  ycoo=rep(coords[,2], k))[isel, ] 
+@ 
+
+In real applications some times we have 
+completely missaligned locations between 
+different times. The code provided here 
+to fit the model still work on this situation. 
+
+\section{Data stack preparation} 
+
+Now, we need the data preparation to build the 
+spatio-temporal model. 
+The index set is made taking into account 
+the number of weights on the SPDE model 
+and the number of groups
+<<rfind>>=
+spde <- attr(x.k, 'spde')
+iset <- inla.spde.make.index('i', n.spde=spde$n.spde, n.group=k)
+@ 
+Notice that the index set for the latent field 
+is not depending on the data set locations. 
+It only depends on the SPDE model size and 
+on the time dimention. 
+
+The projector matrix must be defined considering 
+the coordinates of the observed data. 
+We have to inform the time index for the group 
+to build the projector matrix. 
+This also must be defined on the 
+\code{inla.spde.make.A()} function
+<<apred>>=
+A <- inla.spde.make.A(mesh=prmesh1, 
+                      loc=cbind(dat$xcoo, dat$ycoo), 
+                      group=dat$time) 
+@ 
+
+The effects on the stack are a list with two elements, 
+one is the index set and another the categorical covariate. 
+The stack data is defined as 
+<<stack>>=
+sdat <- inla.stack(tag='stdata', data=list(y=dat$y), 
+                   A=list(A,1),  effects=list(iset, w=dat$w)) 
+@ 
+
+\section{Fitting the model and some results}
+
+We set the prior on the temporal autoregressive 
+parameter with zero mean and variance equals 5, 
+and define the initial value equals the true with 
+<<hbeta>>=
+h.spec <- list(theta=list(initial=0.7, param=c(0, 5)))
+@ 
+
+The likelihood hyperparameter is fixed on a 
+hight precision, just because we haven't noise. 
+We choose the \code{strategy='gaussian'} to 
+it run faster. 
+To deal with the categorical covariate we need 
+to set \code{expand.factor.strategy='inla'} 
+on the \code{control.fixed} argument list. 
+<<remote,echo=F>>=
+inla.setOption(inla.call='remote')
+@ 
+<<ft>>=
+formulae <- y ~ 0 + w + 
+    f(i, model=spde, group=i.group, 
+      control.group=list(model='ar1', hyper=h.spec)) 
+res <- inla(formulae,  data=inla.stack.data(sdat), 
+            control.predictor=list(compute=TRUE, A=inla.stack.A(sdat)), 
+            control.family=list(initial=20, fixed=TRUE), 
+            control.inla=list(strategy='gaussian'), 
+            control.fixed=list(expand.factor.strategy='inla'))
+@ 
+
+The summary of the covariate coefficients 
+(together the observed mean for each covariate level) 
+<<sbeta>>=
+round(cbind(observed=tapply(dat$y, dat$w, mean), res$summary.fixed), 4) 
+@ 
+
+The summary for the posterior marginal distribution 
+of the temporal correlation 
+<<hy1>>=
+round(res$summary.hy[3,], 5)
+@ 
+
+Bellow, we get the marginals distributions 
+for random field parameters on the user scale
+<<userrf>>=
+rf <- inla.spde2.result(res, 'i', attr(x.k, 'spde'), do.transf=TRUE) 
+@ 
+and we see these distributions, also the 
+marginal ditribution for the temporal correlation, 
+on the Figure~\ref{fig:rfst} with the commands bellow 
+<<rfst,eval=F>>=
+par(mfrow=c(2,2), mar=c(3,3,1,0.1), mgp=2:0)
+plot(res$marginals.hyper[[3]], type='l', 
+     xlab=expression(beta), ylab='Density')
+abline(v=rho, col=2)
+plot(rf$marginals.variance.nominal[[1]], type='l', 
+     xlab=expression(sigma[x]), ylab='Density')
+abline(v=params[1], col=2)
+plot(rf$marginals.kappa[[1]], type='l',
+     xlab=expression(kappa), ylab='Density')
+abline(v=params[2], col=2)
+plot(rf$marginals.range.nominal[[1]], type='l', 
+     xlab='range nominal', ylab='Density')
+abline(v=sqrt(8)/params[2], col=2)
+@ 
+\setkeys{Gin}{width=0.75\textwidth}
+\begin{figure}\centering
+<<echo=F,fig=TRUE,eps=FALSE,width=5.5,height=5>>=
+<<rfst>>
+@ 
+\caption{Marginal posterior distribution for 
+  $\beta$ (top left),  $\sigma_x$ (top right), 
+  $\kappa$ (bottom left) and the nominal 
+  range (bottom right). The red vertical lines
+  are placed at true value.}
+\label{fig:rfst}
+\end{figure}
+
+\section{A look at the posterior random field} 
+
+The first look at the random field posterior 
+distribution is to compare the realized random 
+field with the posterior mean, median or/and mode 
+and any quantile. 
+We just compute the correlation between the 
+simulated data response and the posterior mean 
+of the predicted values. 
+
+First, we found the index for the random field 
+at data locations 
+<<rfind>>=
+str(idat <- inla.stack.index(sdat, 'stdata')$data) 
+@ 
+and compute the correlation between the 
+the posterior mean and the response by 
+<<meanrf>>=
+cor(dat$y, res$summary.linear.predictor$mean[idat])
+@ 
+
+We also can do prediction for each time and visualize it. 
+First, we define the projection grid in the same way that 
+on the example on Chapter~\ref{ch:prprec}. 
+<<projgrid>>=
+stepsize <- 4*1/111
+nxy <- round(c(diff(range(coords[,1])), diff(range(coords[,2])))/stepsize)
+projgrid <- inla.mesh.projector(prmesh1, xlim=range(coords[,1]), 
+                                ylim=range(coords[,2]), dims=nxy)
+@ 
+
+The prediction for each time can be done by
+<<projpmean>>= 
+xmean <- list()
+for (j in 1:k)
+  xmean[[j]] <- inla.mesh.project(
+    projgrid, res$summary.random$i$mean[iset$i.group==j])
+@ 
+
+We found what points of the grid are inside the 
+Paran\'a state border. 
+<<inout>>=
+require(splancs)
+xy.in <- inout(projgrid$lattice$loc, cbind(PRborder[,1], PRborder[,2]))
+@ 
+And, to get better visualization, we set NA to the 
+points of the grid out of the Paran\'a border. 
+<<setNA>>=
+for (j in 1:k)   xmean[[j]][!xy.in] <- NA
+@ 
+
+The visualization at Figure~\ref{fig:strf} 
+can be made by the comands bellow
+<<strf>>= 
+require(gridExtra)
+do.call(function(...) grid.arrange(..., nrow=4), 
+        lapply(xmean, levelplot,  xlab='', ylab='',
+               col.regions=topo.colors(16), scale=list(draw=FALSE)))
+@ 
+\setkeys{Gin}{width=0.99\textwidth}
+\begin{figure}\centering
+<<vstrf,echo=F,fig=TRUE,eps=FALSE,width=10,height=10>>=
+<<strf>>
+@ 
+\caption{Visualization of the posterior mean of the 
+  spatio temporal random field.} 
+\label{fig:strf}
+\end{figure}
+
+\section{Validation} 
+
+The results on previous section are done using 
+part of the simulated data. 
+Now we prepare another stack with the simulated data 
+don't used in the simulation. 
+This part of the simulated data are used as a evaluation data. 
+
+<<stkv>>=
+vdat <- data.frame(y=as.vector(y), w=ccov, 
+                   time=rep(1:k, each=n), 
+                   xcoo=rep(coords[,1], k), 
+                   ycoo=rep(coords[,2], k))[-isel, ] 
+Aval <- inla.spde.make.A(prmesh1, loc=cbind(vdat$xcoo, vdat$ycoo), 
+                         group=vdat$time) 
+stval <- inla.stack(tag='stval', data=list(y=NA), 
+                    A=list(Aval,1),  effects=list(iset, w=vdat$w)) 
+@ 
+
+Now, we just use a full data stack to fit the model 
+<<val>>=
+stfull <- inla.stack(sdat, stval) 
+vres <- inla(formulae,  data=inla.stack.data(stfull), 
+             control.predictor=list(compute=TRUE, A=inla.stack.A(stfull)), 
+             control.family=list(initial=20, fixed=TRUE), 
+             control.inla=list(strategy='gaussian'), 
+             control.fixed=list(expand.factor.strategy='inla'))
+@ 
+
+We can look at fitted values for the validation data. 
+We can plot the predicted versus observed values to look at goodness of fit.
+First, we found the index for this data from full stack data. 
+<<indval>>=
+ival <- inla.stack.index(stfull, 'stval')$data 
+@ 
+We plot it with following commands and visualize at Figure~\ref{fig:stval}. 
+<<stvalplot>>=
+plot(vres$summary.fitted.values$mean[ival], vdat$y, 
+     asp=1, xlab='Posterior mean', ylab='Observed') 
+abline(0:1, col=gray(.7)) 
+@ 
+\begin{figure}\centering
+<<vstval,echo=FALSE,fig=TRUE,eps=FALSE,width=5.5,height=5.5>>=
+<<stvalplot>>
+@
+\caption{Validation: Observed versus posterior mean.}
+\label{fig:stval}\end{figure}
+

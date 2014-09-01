@@ -1,0 +1,121 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{listings}
+\begin{document}
+
+\section*{Besag2 model for weighted spatial effects}
+
+\subsection*{Parametrization}
+
+The besag2 model is an extention to the besag model. Let the random
+vector $\mathbf{z}=(x_1,\dots,x_n)$ be the besag model, then the
+besag2 is the following extentions
+\begin{displaymath}
+    \mathbf{x} = (a\mathbf{z}, \mathbf{z}/a)
+\end{displaymath}
+where $a>0$ is an additional hyperparameter and
+$\text{dim}(\mathbf{x}) = 2n$, and $\mathbf{z}$ is the \emph{same} (up
+to tiny additive noise) random vector.
+
+\subsection*{Hyperparameters}
+
+This model has two hyperparameters $\mathbf{\theta} = (\theta_{1},
+\theta_{2})$.
+
+The precision parameter $\tau$ is represented as
+\begin{displaymath}
+    \theta_{1} =\log \tau
+\end{displaymath}
+and the prior is defined on $\theta_{1}$.
+
+The weight-parameter $a$ is represented as
+\begin{displaymath}
+    \theta_{2} = \log a
+\end{displaymath}
+and the prior is defined on $\theta_{2}$.
+
+\subsection*{Specification}
+
+The besag2 model is specified inside the {\tt f()} function as
+\begin{verbatim}
+ f(<whatever>,model="besag2", graph=<graph>
+              precision=<precision>, hyper = <hyper>,
+              adjust.for.con.comp = TRUE,
+              scale.model = FALSE)
+\end{verbatim}
+
+The precision is the precision defining how equal the two copies of
+$\mathbf{z}$ is. The neighbourhood structure of $\mathbf{x}$ is passed
+to the program through the {\tt graph} argument.
+
+Note that the besag2 model has dimension $2 n$, where $n$ is the size
+of the graph.
+
+If the option \verb|adjust.for.con.comp=TRUE| then the model is
+adjusted if the graph has more than one connected compoment. This
+adjustment can be disabled setting this option to \texttt{FALSE}. If
+\verb|adjust.for.con.comp=TRUE| then \texttt{constr=TRUE} is
+interpreted as a sum-to-zero constraint on \emph{each} connected
+component in the graph and the \texttt{rankdef} parameter is set
+depending on the number of connected components.
+
+The logical option \verb|scale.model| determine if the model $z$
+should be scaled to have an average variance (the diagonal of the
+generalized inverse) equal to 1. This makes prior spesification much
+easier. Default is \verb|FALSE| so that the model is not scaled.
+
+
+
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/latent/besag2.tex}
+
+
+
+\subsection*{Example}
+
+This is a simulated example.
+
+\begin{verbatim}
+data(Oral)
+g = system.file("demodata/germany.graph", package="INLA")
+
+## use data Oral to estimate a spatial field in order to simulate a
+## 'realistic' dataset.
+formula = Y ~ f(region, model="bym", graph=g)
+result = inla(formula, data = Oral, family = "poisson", E = E)
+
+x = result$summary.random$region$mean
+n = length(x)/2
+
+## simulate two new datasets. 'a' is the weighting between the
+## log.rel.risk:
+a = 2
+xx = x[1:n]+1
+x = c(a*xx, xx/a)
+E = c(Oral$E, Oral$E)
+N = 2*n
+y = rpois(N, lambda = E*exp(x))
+
+## model='besag2' defines a model with length N = 2*graph->n, the
+## first half is weighted with 'a' the other half is weighted with
+## 1/a. here there is no unstructed terms.
+i = 1:N
+formula = y ~ f(i, model="besag2", graph=g) -1
+r = inla(formula, family = "poisson", data = data.frame(E,y,i), E=E, verbose=TRUE)
+\end{verbatim}
+
+
+\subsection*{Notes}
+
+The besag2 model has default \texttt{constr=FALSE}, and
+\texttt{constr=TRUE} does not make sense.
+
+\end{document}
+
+
+% LocalWords: 
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
