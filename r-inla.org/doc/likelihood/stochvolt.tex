@@ -1,0 +1,76 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{listings}
+\begin{document}
+
+\section*{Student-$t$ model for Stochastic volatility}
+
+\subsection*{Parametrization}
+
+The Student-$t$ likelihood for stochastic volatility models is defined as:
+\[
+\pi(y |\eta )=\sigma \epsilon 
+\]
+where
+\[
+\epsilon \sim T_{\nu}
+\]
+and $T_{\nu}$ is a Student-$t$ distribution with $\nu$ degrees of freedom {\it standardised} to that is has mean $0$ and variance $1$ for any value of $\nu$.
+
+\subsection*{Link-function}
+
+The squared scale parameter $\sigma$ is linked to the linear predictor $\eta $ as:
+\[
+\sigma^{2} =\exp(\eta)
+\]
+
+\subsection*{Hyperparameters}
+
+The degrees of freedom $\nu$ is represented as
+\[
+\theta=\log(\nu-2)
+\]
+and the prior is defined on $\theta$
+
+\subsection*{Specification}
+
+\begin{itemize}
+\item $\text{family}=\texttt{stochvol.t}$
+\item Required argument: $y$.
+\end{itemize}
+
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/likelihood/stochvolt.tex}
+
+\subsection*{Example}
+In the following example we specify the likelihood for the stochastic
+volatility model to be Student-$t$
+ 
+\begin{verbatim}
+n=1000
+x = 0.1 * arima.sim(n = n, model = list(ar = 0.9))
+y=exp(x/2)*rt(n,df=6)
+time=1:n
+data=data.frame(y,time)
+
+formula=y~f(time, model="ar1")+1
+result=inla(formula,family="stochvol.t",data=data)
+## sometimes we need to add
+## control.inla = list(cmin = 1e-2)
+## to make it converge
+hyper=inla.hyperpar(result)
+\end{verbatim}
+
+\subsection*{Notes}
+
+None
+
+\end{document}
+
+
+% LocalWords: 
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
