@@ -1,0 +1,150 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{amsmath,amssymb}
+\usepackage{listings}
+\def\mm#1{\ensuremath{\boldsymbol{#1}}} % version: amsmath
+\begin{document}
+
+\section*{Generic2 model}
+
+\subsection*{Parametrization}
+
+The generic2 model implements the following precision matrix
+\begin{equation}\label{eq1}%
+    \mathbf{Q}=
+    \begin{bmatrix}
+        \tau_{u} \mm{I} & -\tau_{u}\mm{I} \\
+        -\tau_{u}\mm{I} & \tau_{u}\mm{I} + \tau_{v} \mm{C}
+    \end{bmatrix}
+\end{equation}
+where $\mathbf{C}$ is (a given) symmetric matrix. This model arrives
+from the hierarchical model,
+\begin{displaymath}
+    \mm{v} \;\sim\; {\mathcal N}(\mm{0}, \tau_v \mm{C})
+\end{displaymath}
+and
+\begin{displaymath}
+    \mm{u}\mid \mm{v} \;\sim\; {\mathcal N}(\mm{v}, \tau_{u} \mm{I})
+\end{displaymath}
+and the precision matrix in Eq.~(\ref{eq1}) implements the joint
+precision matrix of
+\begin{displaymath}
+    \begin{bmatrix}
+        \mm{u}\\
+        \mm{v}
+    \end{bmatrix}
+\end{displaymath}
+using the following hyperparameters
+\begin{displaymath}
+    \tau_{v}\qquad\text{and}\qquad   h^{2} = \frac{1/\tau_{v}}{1/\tau_{v} + 1/\tau_{u}}.
+\end{displaymath}
+
+
+\subsection*{Hyperparameters}
+
+The two parameters in the \texttt{generic2} model are represented as
+\begin{eqnarray*}
+    \theta_1 &= & \log(\tau_{v})\\
+    \theta_2 &=& \log(\tau_{u}) 
+\end{eqnarray*}
+and priors are assigned to $(\theta_1,\theta_2)$.
+
+\textbf{YES THIS IS CORRECT!} This is because the prior spesification
+would then be similar to another spesification, but allows one to
+compute the posterior marginal for $h^{2}$ more easily.
+
+\subsection*{Specification}
+
+The generic2model is specified inside the {\tt f()} function as
+\begin{verbatim}
+ f(<whatever>,model="generic2",Cmatrix = <Cmat>, hyper = <hyper>)
+\end{verbatim}
+where {\tt <Cmat>} can be given in two different ways:
+\begin{itemize}
+\item a dense matrix or a sparse-matrix defined be
+    \texttt{Matrix::sparseMatrix()}.
+\item the name of a file giving the structure matrix. The file should
+    have the following format
+    \[
+    i\quad j\quad \mathbf{C}_{ij}
+    \]
+    where $i$ and $j$ are the row and column index and
+    $\mathbf{C}_{ij}$ is the corresponding element of the precision
+    matrix. Only the non-zero elements of the precision matrix need to
+    be stored in the file.
+\end{itemize}
+
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/latent/generic2.tex}
+
+\subsection*{Example}
+{\small\begin{verbatim}
+require(mvtnorm)
+n = 200
+Cm = matrix(runif(n^2,min=-1,max=1),n,n)
+Cm = Cm %*% t(Cm)
+Sigma = solve(Cm)
+
+sd = 0.001
+z = rnorm(n,sd=sd)
+eta = rmvnorm(n=1,sigma = Sigma)
+s = 0.1
+y = c(eta) + rnorm(n,sd=s) + z
+idx = 1:n
+
+##
+## Alternative 1
+##
+file = "Cmatrix.dat"
+cat("",file=file, append = FALSE)
+for(i in 1:n)
+{
+    j = i
+    cat(i,j,Cm[i,j], "\n", sep = " ", file=file, append=TRUE)
+    if (i < n)
+        for(j in (i+1):n)
+            cat(i, j, Cm[i,j], "\n", sep = " ", file=file, append=TRUE)
+}
+formula = y ~ f(idx, model = "generic2", Cmatrix = file,
+                initial=c(0,0), fixed=c(F,F))
+
+## Alternative 2
+## formula = y ~ f(idx, model = "generic2", Cmatrix = Cm,
+##                initial=c(0,0), fixed=c(F,F))
+
+## Alternative 3
+## Cm.sparse = as(Cm, "dgTMatrix")
+## formula = y ~ f(idx, model = "generic2", Cmatrix = Cm.sparse,
+##                 initial=c(0,0), fixed=c(F,F))
+
+
+###################################################################
+
+result = inla(formula, data=data.frame(y,idx),
+              control.family = list(initial = log(1/sd^2), fixed=TRUE),
+              verbose = TRUE)
+
+
+## tau.u should be about 1/s^2 = 100. increase `n' above to get
+## it...
+tau.u = result$summary.hyperpar["Precision-cmatrix for idx", "mean"]
+h2 = result$summary.hyperpar["h2 for idx", "mean"]
+tau.v = h2/(1-h2)*tau.u
+print(paste("tau.v", tau.v, "should be (for large n)", 1/s^2))
+\end{verbatim}}
+
+\subsection*{Notes}
+
+The option \texttt{constr=TRUE} will impose a sum-to-zero constraint
+on $\mm{v}$ only.
+
+\end{document}
+
+
+% LocalWords:  Parametrization Eq hyperparameters Cmat Cmatrix Cij ij inla
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
+% LocalWords:  constr
