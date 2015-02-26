@@ -1,0 +1,75 @@
+\documentclass[a4paper,11pt]{article}
+\usepackage[scale={0.8,0.9},centering,includeheadfoot]{geometry}
+\usepackage{amstext}
+\usepackage{listings}
+\begin{document}
+
+\section*{Model for seasonal variation}
+
+\subsection*{Parametrization}
+
+A model for seasonal variation with periodicity $m$ for the random
+vector $\mathcal{x}=(x_1,\dots,x_n)$, $n>m$ is obtained assuming that
+the sums $x_i+x_{i+1}+\dots+x_{i+m-1}$ are independent Gaussian with
+preciosion $\tau$.
+
+The density for $\mathbf{x}$ is derived from the $n-m+1$ increments as
+\begin{eqnarray}
+    \pi(\mathbf{x}|\tau) &\propto& \tau^{\frac{(n-m+1)}{2}} \exp\left\{-\frac{\tau}{2}\sum (x_i+x_{i+1}+\dots+x_{i+m-1})^2\right\}\\
+    & = &\tau^{\frac{(n-m+1)}{2}}\exp\left\{-\frac{1}{2}\mathbf{x}^T\mathbf{Q}\mathbf{x} \right\}
+\end{eqnarray}
+where $\mathbf{Q}=\tau\mathbf{R}$ and $\mathbf{R}$ is the structure
+matrix reflecting the neighbourhood structure of the model.
+
+
+\subsection*{Hyperparameters}
+
+The precision parameter $\tau$ is represented as
+\begin{displaymath}
+    \theta =\log \tau
+\end{displaymath}
+and the prior is defined on $\mathbf{\theta}$. 
+
+\subsection*{Specification}
+
+The seasonal model is specified inside the {\tt f()} function as
+\begin{verbatim}
+ f(<whatever>,model="seasonal",season.length=<season.length>,
+              hyper = <hyper>)
+\end{verbatim}
+ 
+\subsubsection*{Hyperparameter spesification and default values}
+\input{../hyper/latent/seasonal.tex}
+
+
+\subsection*{Example}
+
+\begin{verbatim}
+n=203
+n.seas=12
+trend=1:n
+seasonal.sim=rep(1:n.seas, ceiling(n/n.seas))[1:n]
+
+a=1
+b=0.5
+y = rnorm(n,a+b*trend,1)+rnorm(n,0.2*seasonal.sim,1)
+
+data=data.frame(y=y,trend=trend,seasonal=trend)
+formula = y~f(trend,model="rw2")+f(seasonal,model="seasonal",
+              season.length=n.seas)
+result=inla(formula,family="gaussian",data=data)
+\end{verbatim}
+
+
+\subsection*{Notes}
+
+The seasonal is intrinsic with rank deficiency $m-1$.
+
+\end{document}
+
+
+% LocalWords: 
+
+%%% Local Variables: 
+%%% TeX-master: t
+%%% End: 
