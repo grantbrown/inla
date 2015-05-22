@@ -1,0 +1,1 @@
+This project contains all (and related) code for doing approximate Bayesian inference using integrated nested Laplace approximations for latent Gaussian models. The main use of this code is through the downloadable R-package at the [R-inla web-page](http://www.r-inla.org).
